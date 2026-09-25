@@ -162,8 +162,8 @@ function scanAndVerifyQR(string $imagePath): array
 /**
  * Convert first page of PDF to image
  * NOTE:
- * Imagick is usually unavailable on InfinityFree.
- * This will work locally or on VPS/cPanel hosting.
+ * Imagick is unavailable on many shared hosts. This works on localhost,
+ * VPS, or cPanel hosting with Imagick enabled.
  */
 function convertPdfFirstPageToImage(string $pdfPath, string $outputPath): bool
 {

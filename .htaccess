@@ -1,0 +1,82 @@
+# ─────────────────────────────────────────────────────────────────────
+# LASU Result Complaint Portal — .htaccess
+# ─────────────────────────────────────────────────────────────────────
+# Generic Apache rules. No InfinityFree-specific quirks. Works on:
+#   • Apache 2.4+ (default on most hosts)
+#   • XAMPP / MAMP / Laragon local dev
+#   • Standard cPanel / DirectAdmin / Plesk shared hosts
+#
+# For Nginx: you don't need this file. The project doesn't use
+# Apache-only routing rules. Just point your server block's root at
+# this folder.
+# ─────────────────────────────────────────────────────────────────────
+
+# ── 1. Default charset ──────────────────────────────────────────────
+AddDefaultCharset UTF-8
+
+# ── 2. Protect sensitive files from direct access ───────────────────
+# These should never be served to a browser.
+<FilesMatch "^(?:\.(?:env|git|gitignore|gitattributes)|composer\.(?:json|lock)|composer-setup\.php)$">
+    Require all denied
+</FilesMatch>
+
+# Protect the config file itself
+<Files "config.php">
+    Require all denied
+</Files>
+
+# Protect example files (don't expose what config knobs exist)
+<FilesMatch "^config\.example\.php$">
+    Require all denied
+</FilesMatch>
+
+# ── 3. Protect sensitive directories ───────────────────────────────
+# Deny direct browser access to uploaded user content. These should
+# only be served through PHP after authentication where appropriate.
+<DirectoryMatch "^.*/assets/uploads/(?:evidence|signatures|profiles|temp)$">
+    Require all denied
+</DirectoryMatch>
+
+# Block access to vendor/ (composer dependencies shouldn't be web-served)
+<DirectoryMatch "^.*/vendor$">
+    Require all denied
+</DirectoryMatch>
+
+# Block .git, .svn, etc.
+<DirectoryMatch "^\.git">
+    Require all denied
+</DirectoryMatch>
+
+# ── 4. Disable directory listing (security) ─────────────────────────
+Options -Indexes
+
+# ── 5. Default to index.php for directory index ─────────────────────
+DirectoryIndex index.php index.html
+
+# ── 6. UTF-8 charset for PHP responses ──────────────────────────────
+<IfModule mod_php.c>
+    php_value default_charset "UTF-8"
+    php_value mbstring.internal_encoding "UTF-8"
+</IfModule>
+
+# ── 7. Pretty error pages (optional) ────────────────────────────────
+# Comment out if your host doesn't support ErrorDocument.
+# ErrorDocument 403 /maintenance.php
+# ErrorDocument 404 /index.php
+
+# ── 8. Optional: pretty URLs (rewrite /login → /login.php) ──────────
+# Disabled by default to avoid breaking direct .php links. Enable if
+# you want prettier URLs by removing the leading # on each line.
+#<IfModule mod_rewrite.c>
+#    RewriteEngine On
+#    # If the request isn't a real file or directory, append .php
+#    RewriteCond %{REQUEST_FILENAME} !-f
+#    RewriteCond %{REQUEST_FILENAME} !-d
+#    RewriteRule ^([a-zA-Z0-9_/-]+)$ $1.php [L,QSA]
+#</IfModule>
+
+# ── 9. CORS for the LASU logo (so external LASU site can be used as
+#        fallback when the local logo is missing) ────────────────────
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+</IfModule>

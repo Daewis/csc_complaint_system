@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Persist email across the verify-otp redirect
         $_SESSION['registration_email'] = $email;
 
-        // If mail() failed (e.g. on InfinityFree free tier), pass the code
+        // If mail() failed (e.g. on a free shared host), pass the code
         // through the query string so the user can complete verification
         // during testing. Remove `&code=...` once real SMTP works.
         $redirectUrl = 'verify_otp.php?email=' . urlencode($email);
@@ -257,7 +257,8 @@ body{
       <!-- Logo + Portal name -->
       <div class="logo-row flex items-center gap-4 mb-12">
         <img src="./assets/img/lasu_logo.jpg" alt="LASU Logo"
-             class="w-16 h-16 rounded-xl object-contain bg-white p-1 shadow-lg flex-shrink-0">
+             class="w-16 h-16 rounded-xl object-contain bg-white p-1 shadow-lg flex-shrink-0"
+             onerror="this.src='https://www.lasu.edu.ng/home/img/logo.png'">
         <div>
           <h1 class="text-xl font-black tracking-tight leading-tight">LASU Result<br/> Complaint Portal</h1>
           <p class="text-xs uppercase tracking-widest opacity-60 mt-0.5">Lagos State University</p>

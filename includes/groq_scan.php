@@ -18,8 +18,9 @@ function convertPdfToImageViaPdfCo(string $pdfPath): ?string
     }
 
     // ── STEP 1: Upload PDF directly to PDF.co CDN ─────────────────────────
-    // InfinityFree public URLs return HTML to non-browser agents (422 error).
-    // Uploading directly bypasses this — PDF.co downloads from its own CDN.
+    // Some shared hosts block outbound HTTP from non-browser user agents,
+    // which makes the public URL of the uploaded file inaccessible to
+    // PDF.co. Uploading the file directly to PDF.co's CDN bypasses this.
     $uploadCh = curl_init('https://api.pdf.co/v1/file/upload');
     curl_setopt_array($uploadCh, [
         CURLOPT_RETURNTRANSFER => true,

@@ -222,7 +222,8 @@ body{
     <div class="absolute -left-10 -bottom-10 w-48 h-48 bg-[#fecb00]/10 rounded-full"></div>
     <div class="relative z-10">
       <div class="flex items-center gap-4 mb-12">
-        <img src="./assets/img/lasu_logo.jpg" alt="LASU Logo" class="w-16 h-16 rounded-xl object-contain bg-white p-1 shadow-lg flex-shrink-0">
+        <img src="./assets/img/lasu_logo.jpg" alt="LASU Logo" class="w-16 h-16 rounded-xl object-contain bg-white p-1 shadow-lg flex-shrink-0"
+             onerror="this.src='https://www.lasu.edu.ng/home/img/logo.png'">
         <div>
           <h1 class="text-xl font-black tracking-tight leading-tight">LASU Result<br/> Complaint Portal</h1>
           <p class="text-xs uppercase tracking-widest opacity-60 mt-0.5">Lagos State University</p>

@@ -11,7 +11,7 @@
  *                         reset_password.php?email=...&code=... to set the
  *                         new password)
  *
- * If mail() fails on the host (common on InfinityFree free tier), the
+ * If mail() fails on the host (common on free shared hosting), the
  * register_student.php and forgot_password.php controllers append the
  * generated code as `?code=...` so it can be surfaced on screen during
  * testing. We honour that here by pre-filling the OTP inputs.
@@ -34,7 +34,7 @@ $success = '';
 // Determine purpose from session OR URL OR DB — default to 'registration'
 $purpose = $_GET['purpose'] ?? ($_SESSION['otp_purpose'] ?? 'registration');
 
-// Surfaces the OTP code in dev/test when mail() failed (InfinityFree blocks it)
+// Surfaces the OTP code in dev/test when mail() failed (free hosts block it)
 $devHintCode = isset($_GET['code']) ? trim($_GET['code']) : '';
 $mailFailed = isset($_GET['mail_failed']) && $_GET['mail_failed'] === '1';
 

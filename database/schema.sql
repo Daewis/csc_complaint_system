@@ -1,6 +1,6 @@
 -- =====================================================================
 -- LASU Result Complaint Portal — Canonical Schema
--- Database: if0_41681597_uniportal
+-- Database name: configurable via DB_NAME in .env (default: lasu_uniportal)
 -- =====================================================================
 -- This is the FULL schema with all fixes already applied:
 --   • audit_log.notes (not note)

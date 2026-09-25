@@ -3,7 +3,7 @@
 <footer class="lg:ml-72 py-4 px-4 lg:px-8 text-center text-[10px] text-[#43474f]/50 uppercase tracking-widest font-medium">
   &copy; <?= date('Y') ?> Lagos State University &bull; Academic Redress System &bull; v<?= APP_VERSION ?>
 </footer>
-<script src="/assets/js/app.js"></script>
+<script src="<?= BASE_URL ?>assets/js/app.js"></script>
 <script>
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');

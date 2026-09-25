@@ -9,7 +9,8 @@ require_once __DIR__ . '/../config/config.php';
 if (file_exists(__DIR__ . '/../config/database.php')) {
     require_once __DIR__ . '/../config/database.php';
 } else {
-    // This will help you verify the path on InfinityFree
+    // If database.php is missing, surface the resolved path so the user
+    // can fix their deployment (instead of a silent failure).
     die("CRITICAL ERROR: database.php not found in " . __DIR__);
 }
 

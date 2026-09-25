@@ -457,8 +457,8 @@ function verifyOtp(string $email, string $purpose, string $code): array {
  *
  * Uses PHP mail() if available; if mail() fails or returns false, the OTP
  * code is logged AND returned to the caller so it can be surfaced to the
- * user during development (or shown via flash message on InfinityFree
- * where mail() is disabled by default).
+ * user during development (or shown via flash message on hosts where
+ * mail() is disabled).
  *
  * Returns ['sent' => bool, 'code' => string]
  */

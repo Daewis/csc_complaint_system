@@ -1,1 +1,54 @@
+# ─────────────────────────────────────────────────────────────────────
+# LASU Result Complaint Portal — .gitignore
+# ─────────────────────────────────────────────────────────────────────
+
+# ── Environment / Secrets ───────────────────────────────────────────
+# Never commit real credentials.
 .env
+.env.local
+.env.production
+config/config.local.php
+
+# ── Vendor (Composer dependencies) ──────────────────────────────────
+vendor/
+composer.lock
+
+# ── User-uploaded files (binary assets, signatures, evidence) ──────
+# Keep the directory structure but ignore the contents.
+assets/uploads/*
+!assets/uploads/.gitkeep
+assets/uploads/evidence/*
+!assets/uploads/evidence/.gitkeep
+assets/uploads/signatures/*
+!assets/uploads/signatures/.gitkeep
+assets/uploads/profiles/*
+!assets/uploads/profiles/.gitkeep
+assets/uploads/temp/*
+!assets/uploads/temp/.gitkeep
+
+# ── Logs / Debug artifacts ──────────────────────────────────────────
+*.log
+error_log
+php_error_log
+includes/pdfco_*.txt
+includes/groq_*.txt
+includes/*_debug.txt
+
+# ── OS / IDE junk ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-workspace
+
+# ── Build artifacts ─────────────────────────────────────────────────
+*.zip
+*.tar.gz
+*.tgz
+
+# ── Keep these even if they're empty ────────────────────────────────
+# (negate the rule above so the .gitkeep files are tracked)
+!.gitkeep

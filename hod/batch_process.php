@@ -59,7 +59,7 @@ include __DIR__ . '/../includes/layout.php';
 
 <!-- Header -->
 <div class="mb-6 flex items-center gap-3">
-  <a href="/hod/dashboard.php" class="text-[#43474f] hover:text-[#001e40] transition-colors">
+  <a href="<?= BASE_URL ?>hod/dashboard.php" class="text-[#43474f] hover:text-[#001e40] transition-colors">
     <span class="material-symbols-outlined">arrow_back</span>
   </a>
   <h2 class="text-2xl font-black text-[#001e40]">Batch Processing</h2>
@@ -136,7 +136,7 @@ include __DIR__ . '/../includes/layout.php';
               <?php else: ?>—<?php endif; ?>
             </td>
             <td class="px-4 py-4 text-right">
-              <a href="/hod/review_complaint.php?id=<?= $c['id'] ?>" target="_blank"
+              <a href="<?= BASE_URL ?>hod/review_complaint.php?id=<?= $c['id'] ?>" target="_blank"
                 class="p-1.5 hover:bg-[#edf4ff] rounded-lg transition-colors text-[#43474f] hover:text-[#001e40] inline-flex">
                 <span class="material-symbols-outlined text-sm">open_in_new</span>
               </a>

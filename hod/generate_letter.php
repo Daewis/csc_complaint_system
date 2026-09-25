@@ -286,7 +286,7 @@ $isResolved = in_array($c['status'], ['approved','rejected']);
 
 <!-- Controls (hidden on print) -->
 <div class="no-print">
-  <a href="/hod/review_complaint.php?id=<?= $id ?>" class="btn-back">← Back to Review</a>
+  <a href="<?= BASE_URL ?>hod/review_complaint.php?id=<?= $id ?>" class="btn-back">← Back to Review</a>
   <span style="color:#43474f">Official letter for <strong><?= sanitize($c['ticket_number']) ?></strong></span>
   <a href="<?= BASE_URL ?>download_letter.php?id=<?= $id ?>" class="btn-back" style="margin-left:auto;background:#fecb00;color:#001e40;border:1px solid #f1c100;">
     <span style="font-size:14px;">⬇</span> Download PDF
@@ -430,7 +430,7 @@ $isResolved = in_array($c['status'], ['approved','rejected']);
         <?php if ($hasHOD): ?>
         <div class="sig-block">
           <?php if (!empty($c['hod_sig']) && file_exists(__DIR__ . '/../' . $c['hod_sig'])): ?>
-            <img src="/<?= sanitize($c['hod_sig']) ?>" alt="HOD Signature">
+            <img src="<?= BASE_URL . ltrim($c['hod_sig'], '/') ?>" alt="HOD Signature">
           <?php else: ?>
             <div class="sig-line"></div>
           <?php endif; ?>
@@ -442,7 +442,7 @@ $isResolved = in_array($c['status'], ['approved','rejected']);
         <?php elseif (!empty($user['full_name'])): ?>
         <div class="sig-block">
           <?php if (!empty($user['signature_path']) && file_exists(__DIR__ . '/../' . $user['signature_path'])): ?>
-            <img src="/<?= sanitize($user['signature_path']) ?>" alt="HOD Signature">
+            <img src="<?= BASE_URL . ltrim($user['signature_path'], '/') ?>" alt="HOD Signature">
           <?php else: ?>
             <div class="sig-line"></div>
           <?php endif; ?>
@@ -456,7 +456,7 @@ $isResolved = in_array($c['status'], ['approved','rejected']);
         <?php if ($hasLec): ?>
         <div class="sig-block">
           <?php if (!empty($c['lec_sig']) && file_exists(__DIR__ . '/../' . $c['lec_sig'])): ?>
-            <img src="/<?= sanitize($c['lec_sig']) ?>" alt="Lecturer Signature">
+            <img src="<?= BASE_URL . ltrim($c['lec_sig'], '/') ?>" alt="Lecturer Signature">
           <?php else: ?>
             <div class="sig-line"></div>
           <?php endif; ?>
@@ -471,7 +471,7 @@ $isResolved = in_array($c['status'], ['approved','rejected']);
         <?php if ($hasLA): ?>
         <div class="sig-block">
           <?php if (!empty($c['la_sig']) && file_exists(__DIR__ . '/../' . $c['la_sig'])): ?>
-            <img src="/<?= sanitize($c['la_sig']) ?>" alt="Level Adviser Signature">
+            <img src="<?= BASE_URL . ltrim($c['la_sig'], '/') ?>" alt="Level Adviser Signature">
           <?php else: ?>
             <div class="sig-line"></div>
           <?php endif; ?>
