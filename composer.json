@@ -1,0 +1,31 @@
+{
+    "name": "lasu/uniportal",
+    "description": "LASU Result Complaint Portal — academic complaint management system",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=7.4",
+        "ext-pdo_mysql": "*",
+        "ext-curl": "*",
+        "ext-gd": "*",
+        "ext-mbstring": "*",
+        "ext-fileinfo": "*",
+        "phpmailer/phpmailer": "^6.9",
+        "phpoffice/phpspreadsheet": "^2.0"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "echo '--- LASU Result Complaint Portal ---'",
+            "echo 'Dependencies installed. Next steps:'",
+            "echo '  1. cp .env.example .env'",
+            "echo '  2. Edit .env with your DB + SMTP credentials'",
+            "echo '  3. Import database/schema.sql into MySQL'",
+            "echo '  4. php -S localhost:8000'",
+            "echo '  5. Visit http://localhost:8000/login.php'"
+        ]
+    }
+}

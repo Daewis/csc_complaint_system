@@ -36,15 +36,21 @@ cd csc_complaint_system
 # 2. Copy the env template and edit it with your DB credentials
 cp .env.example .env
 # Edit .env — at minimum set DB_NAME, DB_USER, DB_PASS
+# For real OTP emails, also set SMTP_HOST/USERNAME/PASSWORD (Brevo recommended)
 
-# 3. Import the database schema into MySQL
+# 3. Install PHP dependencies (PHPMailer for SMTP + PhpSpreadsheet for XLSX imports)
+composer install
+# Without Composer, the app still runs but OTP emails use mail() fallback
+# (and XLSX imports are disabled — CSV imports still work)
+
+# 4. Import the database schema into MySQL
 mysql -u root -p < database/schema.sql
 # Or import via phpMyAdmin / Adminer / any GUI tool
 
-# 4. Start PHP's built-in server (for local dev)
+# 5. Start PHP's built-in server (for local dev)
 php -S localhost:8000
 
-# 5. Open in your browser
+# 6. Open in your browser
 # http://localhost:8000/login.php
 ```
 
@@ -255,7 +261,7 @@ The project uses these extensions. Make sure they're enabled in `php.ini` (most 
 | `fileinfo` | MIME type detection on uploads | `includes/functions.php` (uploadEvidence) |
 | `openssl` | HTTPS cURL requests | Implicit |
 | `session` | User sessions | `includes/auth.php` |
-| `mail` (PHP built-in) | OTP delivery | `includes/functions.php` (sendOtpEmail) — optional, has dev-mode fallback |
+| `mail` (PHP built-in) | OTP delivery fallback | `includes/mailer.php` — optional, falls back to dev-mode display if SMTP unavailable |
 
 To verify your local install has everything:
 
@@ -263,7 +269,7 @@ To verify your local install has everything:
 php -m | grep -iE "pdo_mysql|curl|gd|mbstring|fileinfo|openssl|session"
 ```
 
-### Optional (only if you want the XLSX importer for staff)
+### Optional (XLSX importer for staff)
 
 The admin "Import Staff" page supports `.xlsx` via PhpSpreadsheet. If you want this:
 
@@ -272,6 +278,16 @@ composer require phpoffice/phpspreadsheet
 ```
 
 Without Composer, the page still works with CSV uploads / pasted CSV data.
+
+### Recommended (real OTP emails via SMTP)
+
+OTP emails use PHPMailer with Brevo SMTP by default. Install PHPMailer:
+
+```bash
+composer require phpmailer/phpmailer
+```
+
+Without Composer / PHPMailer, the system falls back to PHP's built-in `mail()` (which is blocked on free hosts — see "Email / SMTP" section above for full setup guide and fallback options).
 
 ---
 
@@ -341,6 +357,7 @@ csc_complaint_system/
 │   ├── layout_end.php        ← Closes the layout (sidebar toggle script)
 │   ├── header.php            ← Legacy Bootstrap header (kept for compat)
 │   ├── footer.php            ← Legacy Bootstrap footer (kept for compat)
+│   ├── mailer.php            ← PHPMailer factory + sendMail() helper (Brevo / any SMTP)
 │   ├── complaint_rules.php   ← Course-removal eligibility rules (MIN_UNITS check)
 │   ├── groq_scan.php         ← AI document scan (PDF.co for PDF→PNG, Groq for OCR)
 │   ├── qr_verifier.php       ← LASU QR code decode + URL verification
@@ -429,11 +446,83 @@ Used by `download_letter.php` to render the official LASU letter as a downloadab
 - **Set in `.env`:** `PDFCO_API_KEY=your_key_here`
 - **Without a key:** clicking "Download PDF" will return an HTTP 500 with a message. The "Print / Save PDF" button on `generate_letter.php` still works.
 
-### PHP `mail()` (OTP delivery)
+### Email / SMTP (PHPMailer + Brevo)
 
-The registration and password-reset flows generate 6-digit OTPs and try to email them via PHP's built-in `mail()`. If `mail()` is disabled (common on free hosts), the OTP is surfaced on-screen in a yellow "Dev mode" banner so you can still complete the flow during testing.
+The registration and password-reset flows generate 6-digit OTPs and email them via **PHPMailer** through an SMTP server. The default provider is **Brevo** (300 emails/day free, no credit card needed) but the same code works with Gmail, Mailtrap, SendGrid, Mailgun, or Amazon SES — just change the `SMTP_*` env vars.
 
-To deliver real emails in production, use a host with `mail()` enabled, or wire up an SMTP library (e.g. PHPMailer) and replace the `sendOtpEmail()` body.
+**Three drivers are supported** (set via `MAIL_DRIVER` in `.env`):
+- `smtp` — PHPMailer + SMTP (default, recommended)
+- `mail` — PHP's built-in `mail()` (fallback for hosts that allow it)
+- `log`  — writes the email body to `error_log` instead of sending (for tests)
+
+If a driver fails (e.g. SMTP creds missing, host blocks `mail()`), the verify-otp page surfaces the code on-screen in a yellow "Dev mode" banner so you can still complete the flow during testing.
+
+#### Setting up Brevo SMTP (recommended — free 300 emails/day)
+
+1. **Sign up** at [https://www.brevo.com](https://www.brevo.com) (free, no credit card).
+2. **Verify your sender email address**:
+   - Log in → **Settings** → **Senders & IP** → **Add a sender**
+   - Add `no-reply@lasu.edu.ng` (or your preferred From: address)
+   - Click the verification link Brevo emails you.
+3. **Generate an SMTP key**:
+   - Log in → **Settings** → **SMTP & API** → **SMTP** tab
+   - Click **Generate a new SMTP key**
+   - Copy the key (looks like `xkeys-ib-...` or a long alphanumeric string).
+4. **Install PHPMailer** in your project:
+   ```bash
+   cd csc_complaint_system
+   composer require phpmailer/phpmailer
+   ```
+   (If Composer isn't installed, download it from [https://getcomposer.org](https://getcomposer.org).)
+5. **Configure `.env`**:
+   ```
+   MAIL_DRIVER=smtp
+   SMTP_HOST=smtp-relay.brevo.com
+   SMTP_PORT=587
+   SMTP_USERNAME=no-reply@lasu.edu.ng   # must match your verified sender
+   SMTP_PASSWORD=xkeys-ib-your-key-here  # the key from step 3
+   SMTP_ENCRYPTION=tls
+   MAIL_FROM=no-reply@lasu.edu.ng
+   MAIL_FROM_NAME=LASU Result Complaint Portal
+   ```
+
+You're done. The registration + password reset flows will now send real emails via Brevo.
+
+#### Other providers (just change SMTP_HOST/PORT/ENCRYPTION)
+
+| Provider | SMTP_HOST | SMTP_PORT | SMTP_ENCRYPTION | SMTP_USERNAME | SMTP_PASSWORD |
+|---|---|---|---|---|---|
+| **Brevo** (recommended) | `smtp-relay.brevo.com` | 587 | `tls` | your verified sender email | your Brevo SMTP key |
+| **Gmail** | `smtp.gmail.com` | 587 | `tls` | your Gmail address | a 16-character **App Password** (not your account password — needs 2FA enabled) |
+| **Mailtrap** (testing) | `sandbox.smtp.mailtrap.io` | 2525 | `tls` | your Mailtrap inbox username | your Mailtrap inbox password |
+| **SendGrid** | `smtp.sendgrid.net` | 587 | `tls` | `apikey` | your SendGrid API key |
+| **Mailgun** | `smtp.mailgun.org` | 587 | `tls` | your Mailgun SMTP username | your Mailgun SMTP password |
+| **Amazon SES** | `email-smtp.<region>.amazonaws.com` | 587 | `tls` | your SES SMTP username | your SES SMTP password |
+
+#### Debugging SMTP failures
+
+If emails fail to send:
+1. Set `APP_ENV=local` in `.env` — the verify-otp page will show the code on-screen in a yellow "Dev mode" banner so you can confirm the OTP flow works.
+2. Check `error_log` for the `PHPMailer error:` message — it usually says exactly what's wrong (auth failure, wrong port, blocked connection, etc.).
+3. Temporarily enable PHPMailer debug output by adding this line in `includes/mailer.php` inside `_sendViaPhpMailer()` (right before `$mail->send()`):
+   ```php
+   $mail->SMTPDebug = 2; // 2 = client + server + connection
+   ```
+   This prints the full SMTP conversation to the page — remove it once you've identified the issue.
+
+#### Without Composer (manual PHPMailer install)
+
+If you can't run Composer, download PHPMailer from [https://github.com/PHPMailer/PHPMailer/releases](https://github.com/PHPMailer/PHPMailer/releases), extract the ZIP, and copy these 3 files into `includes/PHPMailer/`:
+- `src/PHPMailer.php`
+- `src/SMTP.php`
+- `src/Exception.php`
+
+Then add this snippet at the top of `includes/mailer.php` (replacing the Composer autoload line):
+```php
+require_once __DIR__ . '/PHPMailer/PHPMailer.php';
+require_once __DIR__ . '/PHPMailer/SMTP.php';
+require_once __DIR__ . '/PHPMailer/Exception.php';
+```
 
 ---
 
@@ -453,8 +542,12 @@ To bypass: visit any URL with `?bypass=<secret>` (default secret: `lasu` — ove
 - On Linux/Mac localhost, use `127.0.0.1` (not `localhost` — `localhost` forces a socket connection)
 
 ### OTP emails never arrive
-- Set `APP_ENV=local` in `.env` — the verify-otp page will show the code in a yellow "Dev mode" banner
-- For real delivery: ensure your host has `mail()` enabled, or replace `sendOtpEmail()` in `includes/functions.php` with a PHPMailer/SMTP call
+1. Set `APP_ENV=local` in `.env` — the verify-otp page will show the code in a yellow "Dev mode" banner so you can confirm the OTP flow itself works.
+2. Check `error_log` for `PHPMailer error:` messages — they explain the underlying failure (auth, port, blocked connection, etc.).
+3. Verify you've run `composer require phpmailer/phpmailer` (or installed PHPMailer manually — see "Without Composer" section above).
+4. Verify your `.env` has the right SMTP credentials. For Brevo, the `SMTP_USERNAME` must be an email address you've verified in the Brevo dashboard (Settings → Senders & IP).
+5. Try `MAIL_DRIVER=log` temporarily — this writes the email body to `error_log` and proves the rest of the pipeline works.
+6. See the "Debugging SMTP failures" section above to enable verbose PHPMailer debug output.
 
 ### BASE_URL is wrong / assets don't load
 - The project auto-detects BASE_URL from the request — should just work

@@ -110,11 +110,30 @@ define('OTP_EXPIRY_MINUTES', (int) env('OTP_EXPIRY_MINUTES', 15));
 define('OTP_LENGTH',         (int) env('OTP_LENGTH', 6));
 define('OTP_MAX_ATTEMPTS',   (int) env('OTP_MAX_ATTEMPTS', 5));
 
-// Email sender address used in the OTP email. Override with a real
-// inbox in production. The local part can be anything; the domain must
-// be one your server is allowed to send from.
-define('MAIL_FROM',     env('MAIL_FROM', 'no-reply@lasu.edu.ng'));
-define('MAIL_FROM_NAME',env('MAIL_FROM_NAME', APP_NAME));
+// ── 7b. Email / SMTP (PHPMailer) ───────────────────────────────────────────
+// Three drivers are supported:
+//   • 'smtp'  → PHPMailer with the SMTP server below (default — works with
+//               Brevo, Gmail, Mailtrap, SendGrid, Mailgun, SES, etc.)
+//   • 'mail'  → PHP's built-in mail() function (works on some hosts, blocked
+//               on free hosts — code will fall back to dev-mode display)
+//   • 'log'   → writes the email body to error_log instead of sending it
+//               (useful for tests without a real SMTP account)
+define('MAIL_DRIVER',     env('MAIL_DRIVER', 'smtp'));
+
+// SMTP connection — defaults are Brevo's recommended relay endpoint.
+// Override in .env for other providers.
+define('SMTP_HOST',        env('SMTP_HOST', 'smtp-relay.brevo.com'));
+define('SMTP_PORT',        (int) env('SMTP_PORT', 587));
+define('SMTP_USERNAME',   env('SMTP_USERNAME', ''));
+define('SMTP_PASSWORD',   env('SMTP_PASSWORD', ''));
+// 'tls' for port 587 (STARTTLS), 'ssl' for port 465 (implicit SSL), '' for plain
+define('SMTP_ENCRYPTION',  env('SMTP_ENCRYPTION', 'tls'));
+
+// From: address — MUST be a verified sender in your SMTP provider's account.
+// For Brevo: log in → Settings → Senders & IP → Add the email address.
+define('MAIL_FROM',      env('MAIL_FROM', 'no-reply@lasu.edu.ng'));
+define('MAIL_FROM_NAME', env('MAIL_FROM_NAME', APP_NAME));
+define('MAIL_REPLY_TO',  env('MAIL_REPLY_TO', MAIL_FROM));
 
 // ── 8. SLA & Session ────────────────────────────────────────────────────────
 define('SLA_HOURS',        (int) env('SLA_HOURS', 72));

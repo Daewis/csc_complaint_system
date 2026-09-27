@@ -453,40 +453,44 @@ function verifyOtp(string $email, string $purpose, string $code): array {
 }
 
 /**
- * sendOtpEmail — best-effort email dispatch.
+ * sendOtpEmail — best-effort OTP email dispatch.
  *
- * Uses PHP mail() if available; if mail() fails or returns false, the OTP
- * code is logged AND returned to the caller so it can be surfaced to the
- * user during development (or shown via flash message on hosts where
- * mail() is disabled).
+ * Routes through the central sendMail() helper in includes/mailer.php,
+ * which uses PHPMailer + Brevo SMTP (or whatever SMTP server is
+ * configured in .env). If PHPMailer isn't installed or SMTP creds are
+ * missing, sendMail() falls back to PHP's built-in mail().
  *
- * Returns ['sent' => bool, 'code' => string]
+ * If BOTH fail (e.g. free host that blocks mail()), the caller can
+ * surface the code on-screen via the `&mail_failed=1` query param so
+ * the user can still complete verification during testing.
+ *
+ * Returns ['sent' => bool, 'code' => string, 'error' => ?string]
  */
 function sendOtpEmail(string $toEmail, string $code, string $purpose = 'registration'): array {
+    // Load the mailer (which in turn loads config.php)
+    require_once __DIR__ . '/mailer.php';
+
     $subject = $purpose === 'password_reset'
-        ? 'LASU Portal — Password Reset Code'
-        : 'LASU Portal — Email Verification Code';
+        ? APP_NAME . ' — Password Reset Code'
+        : APP_NAME . ' — Email Verification Code';
 
-    $app    = defined('APP_NAME') ? APP_NAME : 'LASU Result Complaint Portal';
-    $body   = "Hello,\n\n"
-            . "Your {$app} verification code is: {$code}\n\n"
-            . "This code will expire in "
-            . (defined('OTP_EXPIRY_MINUTES') ? OTP_EXPIRY_MINUTES : 15)
-            . " minutes. If you did not request this, you can safely ignore this email.\n\n"
-            . "— {$app}";
+    $htmlBody = buildOtpEmailBody($code, $purpose);
+    $altBody  = "Your " . APP_NAME . " verification code is: {$code}\n\n"
+             . "This code expires in " . OTP_EXPIRY_MINUTES . " minutes. "
+             . "If you did not request this, you can safely ignore this email.\n\n— " . APP_NAME;
 
-    $headers = "From: no-reply@lasu.edu.ng\r\n"
-             . "Reply-To: no-reply@lasu.edu.ng\r\n"
-             . "X-Mailer: PHP/" . phpversion();
+    $result = sendMail([
+        'to'      => $toEmail,
+        'subject' => $subject,
+        'body'    => $htmlBody,
+        'alt'     => $altBody,
+    ]);
 
-    // Suppress warnings — we handle the failure ourselves
-    $sent = @mail($toEmail, $subject, $body, $headers);
-
-    if (!$sent) {
-        error_log("sendOtpEmail: mail() failed for {$toEmail}. Code was: {$code}");
-    }
-
-    return ['sent' => (bool)$sent, 'code' => $code];
+    return [
+        'sent'  => $result['sent'],
+        'code'  => $code,
+        'error' => $result['error'] ?? null,
+    ];
 }
 
 /**
