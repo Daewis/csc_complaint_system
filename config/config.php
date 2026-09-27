@@ -29,7 +29,7 @@
  *   4. Import `database/schema.sql` into your MySQL server.
  *   5. Point your web server's document root at the project folder.
  *
- * @package LASU Result Complaint Portal
+ * @package Csc Complaint Portal
  * @since   1.0.0
  */
 
@@ -82,12 +82,12 @@ function env(string $key, $default = null) {
 // Override in .env for production.
 define('DB_HOST', env('DB_HOST', '127.0.0.1'));
 define('DB_PORT', env('DB_PORT', '3306'));
-define('DB_NAME', env('DB_NAME', 'lasu_uniportal'));
+define('DB_NAME', env('DB_NAME', 'csc_portal'));
 define('DB_USER', env('DB_USER', 'root'));
 define('DB_PASS', env('DB_PASS', ''));
 
 // ── 4. Application Identity ─────────────────────────────────────────────────
-define('APP_NAME',    env('APP_NAME', 'LASU Result Complaint Portal'));
+define('APP_NAME',    env('APP_NAME', 'Csc Complaint Portal'));
 define('APP_VERSION', env('APP_VERSION', '1.0.0'));
 
 // ── 5. Third-Party API Keys ─────────────────────────────────────────────────
