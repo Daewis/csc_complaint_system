@@ -11,7 +11,6 @@ $success = '';
 if (isset($_GET['success'])) {
     switch ($_GET['success']) {
         case 'registered':   $success = 'Account created successfully. You can now log in.'; break;
-        case 'verified':      $success = 'Email verified successfully! You can now log in.'; break;
         case 'password_reset':$success = 'Password updated successfully. Please log in with your new password.'; break;
     }
 }
@@ -43,7 +42,7 @@ if ($urlError === 'unauthorized') {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="google-site-verification" content="WsPDbEfWnpQQ2OWRyUrsBZfNmyTrmeXWKwb0QcppGmQ" />
-  <title>Sign In | LASU Result Complaint Portal</title>
+  <title>Sign In | CSC Result Complaint Portal</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -225,7 +224,7 @@ body{
         <img src="./assets/img/lasu_logo.jpg" alt="LASU Logo" class="w-16 h-16 rounded-xl object-contain bg-white p-1 shadow-lg flex-shrink-0"
              onerror="this.src='https://www.lasu.edu.ng/home/img/logo.png'">
         <div>
-          <h1 class="text-xl font-black tracking-tight leading-tight">LASU Result<br/> Complaint Portal</h1>
+          <h1 class="text-xl font-black tracking-tight leading-tight">CSC Result<br/> Complaint Portal</h1>
           <p class="text-xs uppercase tracking-widest opacity-60 mt-0.5">Lagos State University</p>
         </div>
       </div>

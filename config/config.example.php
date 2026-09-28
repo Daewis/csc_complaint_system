@@ -1,6 +1,6 @@
 <?php
 /**
- * LASU Result Complaint Portal — Example Configuration
+ * CSC Result Complaint Portal — Example Configuration
  * ====================================================================
  *
  * This file documents every configuration knob the project exposes.
@@ -54,6 +54,6 @@
  *   MAINTENANCE_MODE   "true" or "false" (default: false)
  *   MAINTENANCE_SECRET Bypass secret (default: lasu)
  *
- * @package LASU Result Complaint Portal
+ * @package CSC Result Complaint Portal
  */
 echo "This is the example config file. Copy it to config.php (it should already exist) and configure via .env instead.";

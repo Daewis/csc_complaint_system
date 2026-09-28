@@ -1,4 +1,4 @@
-# LASU Result Complaint Portal — Updated Build
+# CSC Result Complaint Portal — Updated Build
 
 ## What changed in this update
 

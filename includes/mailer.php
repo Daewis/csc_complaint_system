@@ -10,7 +10,7 @@
  *
  * DRIVER SWITCH:
  *   • MAIL_DRIVER=smtp → PHPMailer with SMTP (default, works everywhere)
- *   • MAIL_DRIVER=mail → PHP's built-in mail() function (fallback)
+ *   • MAIL_DRIVER=mail → PHP's built-in mail() function
  *   • MAIL_DRIVER=log  → writes the email body to error_log (testing only)
  *
  * USAGE:
@@ -28,19 +28,20 @@
  *
  * DEPENDENCIES:
  *   • PHPMailer 6.x — install via `composer require phpmailer/phpmailer`
- *   • If Composer isn't available, falls back to PHP mail() automatically
+ *   • With MAIL_DRIVER=smtp, a missing PHPMailer or empty SMTP credentials
+ *     return an error (no silent fallback to mail()).
  *
- * @package LASU Result Complaint Portal
+ * @package CSC Result Complaint Portal
  * @since   1.0.0
  */
 
 require_once __DIR__ . '/../config/config.php';
 
-// Try to load the Composer autoloader (if installed)
+// Load the Composer autoloader (if installed). We check for the PHPMailer
+// class itself later, so this works no matter where this file is included
+// from (top level or inside a function).
 $composerAutoload = __DIR__ . '/../vendor/autoload.php';
-$phpMailerAvailable = file_exists($composerAutoload);
-
-if ($phpMailerAvailable) {
+if (file_exists($composerAutoload)) {
     require_once $composerAutoload;
 }
 
@@ -91,18 +92,14 @@ function sendMail(array $args): array {
 
     // ── Driver: smtp (PHPMailer) ──────────────────────────────────────
     if ($driver === 'smtp') {
-        global $phpMailerAvailable;
-
-        if (!$phpMailerAvailable) {
-            // Composer / PHPMailer not installed — fall back to mail()
-            error_log('sendMail: MAIL_DRIVER=smtp but PHPMailer not installed. Falling back to mail().');
-            return _sendViaMailFunction($to, $toName, $subject, $body, $altBody, $replyTo);
+        if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
+            error_log('sendMail: PHPMailer not installed.');
+            return ['sent' => false, 'error' => 'PHPMailer not installed.', 'driver' => 'smtp'];
         }
 
         if (!SMTP_USERNAME || !SMTP_PASSWORD) {
-            // SMTP credentials not configured — fall back to mail()
-            error_log('sendMail: MAIL_DRIVER=smtp but SMTP_USERNAME/SMTP_PASSWORD are empty. Falling back to mail().');
-            return _sendViaMailFunction($to, $toName, $subject, $body, $altBody, $replyTo);
+            error_log('sendMail: SMTP_USERNAME/SMTP_PASSWORD are empty.');
+            return ['sent' => false, 'error' => 'SMTP credentials are empty.', 'driver' => 'smtp'];
         }
 
         return _sendViaPhpMailer($to, $toName, $subject, $body, $altBody, $replyTo);
@@ -116,6 +113,7 @@ function sendMail(array $args): array {
     // Unknown driver
     return ['sent' => false, 'error' => "Unknown MAIL_DRIVER: '{$driver}'. Use 'smtp', 'mail', or 'log'.", 'driver' => 'none'];
 }
+
 
 /**
  * _sendViaPhpMailer — uses PHPMailer 6.x with the configured SMTP server.
@@ -176,9 +174,9 @@ function _sendViaPhpMailer(string $to, string $toName, string $subject, string $
 }
 
 /**
- * _sendViaMailFunction — uses PHP's built-in mail(). Works on hosts where
- * `mail()` is enabled; on free hosts (InfinityFree etc.) it returns false
- * and the caller falls back to dev-mode (displaying the code on screen).
+ * _sendViaMailFunction — uses PHP's built-in mail(). Only used when
+ * MAIL_DRIVER=mail. Note: on XAMPP/local machines mail() often reports
+ * success without actually delivering anything.
  *
  * @internal
  */
@@ -206,7 +204,7 @@ function _sendViaMailFunction(string $to, string $toName, string $subject, strin
  * email client (Gmail, Outlook, Apple Mail, etc.) thanks to inline CSS.
  */
 function buildOtpEmailBody(string $code, string $purpose): string {
-    $appName = defined('APP_NAME') ? APP_NAME : 'LASU Result Complaint Portal';
+    $appName = defined('APP_NAME') ? APP_NAME : 'CSC Result Complaint Portal';
     $expiryMinutes = defined('OTP_EXPIRY_MINUTES') ? OTP_EXPIRY_MINUTES : 15;
     $title = $purpose === 'password_reset' ? 'Password Reset Code' : 'Email Verification Code';
     $intro = $purpose === 'password_reset'

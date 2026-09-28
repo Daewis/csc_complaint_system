@@ -2,37 +2,33 @@
 /**
  * reset_password.php — Step 2 of the password reset flow.
  *
- * Reached from verify_otp.php after the OTP code has been validated.
- * The URL carries `?email=...&code=...` so this page can be sure the
- * user just verified. For safety we DON'T trust the code blindly — we
- * re-check it against the otp_codes table before allowing the update.
+ * Reached from verify_otp.php after the OTP has been validated. No code is
+ * passed in the URL. verify_otp.php sets a short-lived session flag
+ * (reset_email + reset_verified_at) which this page checks instead.
  */
 
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 redirectIfLoggedIn();
 
-$email = trim($_GET['email'] ?? '');
-$code  = trim($_GET['code']  ?? '');
+$email      = $_SESSION['reset_email'] ?? '';
+$verifiedAt = (int)($_SESSION['reset_verified_at'] ?? 0);
 
-$error   = '';
-$success = '';
-
-if (!$email || !$code) {
+// Must have just passed OTP verification (valid for 15 minutes)
+if (!$email || (time() - $verifiedAt) > 900) {
+    unset($_SESSION['reset_email'], $_SESSION['reset_verified_at']);
     header('Location: forgot_password.php');
     exit;
 }
+
+$error   = '';
+$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newPassword     = $_POST['new_password']     ?? '';
     $confirmPassword = $_POST['confirm_password'] ?? '';
 
-    // Re-verify the OTP so this endpoint can't be called directly without a valid code
-    $verify = verifyOtp($email, 'password_reset', $code);
-
-    if (!$verify['ok']) {
-        $error = $verify['error'] ?? 'Verification failed. Please restart the password reset flow.';
-    } elseif ($newPassword !== $confirmPassword) {
+    if ($newPassword !== $confirmPassword) {
         $error = 'Passwords do not match.';
     } elseif (strlen($newPassword) < 6) {
         $error = 'Password must be at least 6 characters.';
@@ -49,10 +45,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $uid = (int)$uidStmt->fetchColumn();
             try { logAudit(0, $uid, 'password_reset_completed', getClientIP(), 'User completed password reset.'); } catch (Throwable $e) {}
 
+            // One-time use: clear the flag so the page can't be reused
+            unset($_SESSION['reset_email'], $_SESSION['reset_verified_at']);
+
             header('Location: login.php?success=password_reset');
             exit;
         } catch (Throwable $e) {
-            $error = 'Failed to update password: ' . $e->getMessage();
+            error_log('Password reset failed: ' . $e->getMessage());
+            $error = 'Failed to update password. Please try again.';
         }
     }
 }
@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Reset Password | LASU Result Complaint Portal</title>
+  <title>Reset Password | CSC Result Complaint Portal</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -98,8 +98,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <?php endif; ?>
 
   <form method="POST" class="w-full space-y-6">
-    <input type="hidden" name="email" value="<?= htmlspecialchars($email) ?>">
-    <input type="hidden" name="code"  value="<?= htmlspecialchars($code) ?>">
 
     <div class="space-y-2">
       <label class="text-xs font-bold text-[#43474f] uppercase tracking-widest text-left ml-1">New Password</label>

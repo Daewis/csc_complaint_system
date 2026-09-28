@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Under Maintenance | LASU Result Complaint Portal</title>
+  <title>Under Maintenance | CSC Result Complaint Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -45,7 +45,7 @@
         <span class="material-symbols-outlined text-[#fecb00] text-lg">school</span>
       </div>
       <div>
-        <p class="text-white font-extrabold text-sm tracking-tight uppercase leading-none">LASU Result</p>
+        <p class="text-white font-extrabold text-sm tracking-tight uppercase leading-none">CSC Result</p>
         <p class="text-white/40 text-[9px] uppercase tracking-[0.2em] font-bold mt-0.5">Complaint Portal</p>
       </div>
     </div>

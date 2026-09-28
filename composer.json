@@ -1,16 +1,16 @@
 {
     "name": "lasu/uniportal",
-    "description": "LASU Result Complaint Portal — academic complaint management system",
+    "description": "CSC Result Complaint Portal — academic complaint management system",
     "type": "project",
     "license": "proprietary",
     "require": {
         "php": ">=7.4",
-        "ext-pdo_mysql": "*",
         "ext-curl": "*",
+        "ext-fileinfo": "*",
         "ext-gd": "*",
         "ext-mbstring": "*",
-        "ext-fileinfo": "*",
-        "phpmailer/phpmailer": "^6.9",
+        "ext-pdo_mysql": "*",
+        "phpmailer/phpmailer": "^7.1",
         "phpoffice/phpspreadsheet": "^2.0"
     },
     "config": {
@@ -19,7 +19,7 @@
     },
     "scripts": {
         "post-install-cmd": [
-            "echo '--- LASU Result Complaint Portal ---'",
+            "echo '--- CSC Result Complaint Portal ---'",
             "echo 'Dependencies installed. Next steps:'",
             "echo '  1. cp .env.example .env'",
             "echo '  2. Edit .env with your DB + SMTP credentials'",

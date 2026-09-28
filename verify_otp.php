@@ -2,19 +2,14 @@
 /**
  * verify_otp.php — Pure-PHP OTP verification
  *
- * Replaces the old Supabase OTP flow. The OTP code is stored in the local
- * `otp_codes` table with an expiry timestamp. Two purposes are supported:
+ * The OTP code is stored in the local `otp_codes` table with an expiry
+ * timestamp. Two purposes are supported:
  *
- *   • 'registration'    — completing student sign-up (data from user_data
+ *   • 'registration'    — completing student sign-up (data from the user_data
  *                         JSON column is used to create the final users row)
- *   • 'password_reset'  — completing password reset (user is redirected to
- *                         reset_password.php?email=...&code=... to set the
- *                         new password)
- *
- * If mail() fails on the host (common on free shared hosting), the
- * register_student.php and forgot_password.php controllers append the
- * generated code as `?code=...` so it can be surfaced on screen during
- * testing. We honour that here by pre-filling the OTP inputs.
+ *   • 'password_reset'  — completing password reset. On success a short-lived
+ *                         session flag is set and the user is sent to
+ *                         reset_password.php (no code is ever put in the URL).
  */
 
 require_once __DIR__ . '/includes/auth.php';
@@ -31,16 +26,15 @@ if (!$email) {
 $error   = '';
 $success = '';
 
-// Determine purpose from session OR URL OR DB — default to 'registration'
-$purpose = $_GET['purpose'] ?? ($_SESSION['otp_purpose'] ?? 'registration');
-
-// Surfaces the OTP code in dev/test when mail() failed (free hosts block it)
-$devHintCode = isset($_GET['code']) ? trim($_GET['code']) : '';
-$mailFailed = isset($_GET['mail_failed']) && $_GET['mail_failed'] === '1';
+// Determine purpose from URL, POST, or session — default to 'registration'
+$purpose = $_GET['purpose'] ?? $_POST['purpose'] ?? ($_SESSION['otp_purpose'] ?? 'registration');
+if (!in_array($purpose, ['registration', 'password_reset'], true)) {
+    $purpose = 'registration';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['verify'])) {
-        $otp = implode('', $_POST['otp'] ?? []);
+        $otp = preg_replace('/\D/', '', implode('', $_POST['otp'] ?? []));
 
         if (strlen($otp) !== 6) {
             $error = 'Please enter the 6-digit verification code.';
@@ -64,7 +58,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $exists = $db->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
                             $exists->execute([$userData['email']]);
                             if ($exists->fetch()) {
-                                // Mark verified and move on
                                 $db->prepare("UPDATE users SET is_verified = 1, is_active = 1, password_hash = COALESCE(?, password_hash) WHERE email = ?")
                                    ->execute([$userData['password_hash'] ?? null, $userData['email']]);
                             } else {
@@ -103,22 +96,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             exit;
 
                         } catch (PDOException $e) {
-                            $error = "Database error: " . $e->getMessage();
+                            error_log('Registration DB error: ' . $e->getMessage());
+                            $error = 'Something went wrong while creating your account. Please try again.';
                         }
                     }
                 } else {
-                    // password_reset: forward to reset_password.php with the
-                    // verified code so the reset form can pre-fill it.
+                    // password_reset: set a short-lived session flag instead of
+                    // passing the code in the URL.
                     unset($_SESSION['otp_purpose']);
-                    header('Location: ' . BASE_URL . 'reset_password.php?email=' . urlencode($email) . '&code=' . urlencode($otp));
+                    $_SESSION['reset_email']       = $email;
+                    $_SESSION['reset_verified_at'] = time();
+                    header('Location: ' . BASE_URL . 'reset_password.php');
                     exit;
                 }
             }
         }
     } elseif (isset($_POST['resend'])) {
-        // Re-issue a new code for the same purpose.
-        // For 'registration' we need the user_data; pull it from the most recent
-        // otp row for this email/purpose so we don't lose the payload.
+        // Re-issue a new code for the same purpose, keeping the registration
+        // payload from the most recent otp row.
         $db = getDB();
         $stmt = $db->prepare("SELECT user_data FROM otp_codes WHERE email = ? AND purpose = ? ORDER BY created_at DESC LIMIT 1");
         $stmt->execute([$email, $purpose]);
@@ -128,12 +123,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $code = storeOtp($email, $purpose, $userDataJson);
         $mailResult = sendOtpEmail($email, $code, $purpose);
 
-        if (!$mailResult['sent']) {
-            // Surface the new code in dev mode again
-            header('Location: ' . BASE_URL . 'verify_otp.php?email=' . urlencode($email) . '&purpose=' . urlencode($purpose) . '&code=' . urlencode($code) . '&mail_failed=1');
-            exit;
+        if ($mailResult['sent']) {
+            $success = 'A new verification code has been sent to your email.';
+        } else {
+            error_log('OTP mail failed (resend): ' . ($mailResult['error'] ?? 'unknown'));
+            $error = 'We could not send the code. Please try again shortly.';
         }
-        $success = 'A new verification code has been sent to your email.';
     }
 }
 ?>
@@ -142,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Verify Email | LASU Result Complaint Portal</title>
+  <title>Verify Email | CSC Result Complaint Portal</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -181,18 +176,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <p class="text-[#001e40] font-bold mb-2 break-all italic text-sm"><?= htmlspecialchars($email) ?></p>
   <p class="text-[10px] text-[#43474f]/60 font-bold uppercase tracking-widest mb-6">Check your spam folder if it's missing</p>
 
-  <?php if ($mailFailed && $devHintCode): ?>
-  <div class="mb-6 w-full p-4 rounded-xl text-xs font-bold bg-[#ffe08b]/40 text-[#745b00] flex items-start gap-2 text-left border border-[#fecb00]">
-    <span class="material-symbols-outlined text-base flex-shrink-0 mt-0.5">build</span>
-    <div>
-      <p class="font-black uppercase tracking-wider mb-1">Dev mode — mail() unavailable</p>
-      <p>Email sending is disabled on this host. Your verification code is:</p>
-      <p class="text-2xl font-black tracking-widest my-1 text-[#001e40]"><?= htmlspecialchars($devHintCode) ?></p>
-      <p class="text-[10px] normal-case font-medium">This would normally arrive by email. Set up SMTP (or use a host with mail() enabled) to remove this notice.</p>
-    </div>
-  </div>
-  <?php endif; ?>
-
   <?php if ($error): ?>
   <div class="mb-6 w-full p-4 rounded-xl text-xs font-bold bg-[#ffdad6] text-[#93000a] flex items-center gap-2">
     <span class="material-symbols-outlined text-base">error</span>
@@ -212,18 +195,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="space-y-4">
       <label class="text-xs font-bold text-[#43474f] uppercase tracking-widest">Verification Code</label>
       <div class="flex gap-2 justify-center">
-        <?php
-        // Pre-fill the 6 boxes from $devHintCode when present (dev mode)
-        for ($i = 0; $i < 6; $i++):
-            $val = ($devHintCode && isset($devHintCode[$i])) ? $devHintCode[$i] : '';
-        ?>
+        <?php for ($i = 0; $i < 6; $i++): ?>
           <input
             type="text"
             name="otp[]"
             inputmode="numeric"
             pattern="[0-9]*"
-            maxLength="1"
-            value="<?= htmlspecialchars($val) ?>"
+            maxlength="1"
+            autocomplete="one-time-code"
             class="otp-field w-12 h-14 text-center text-2xl font-black bg-[#edf4ff] border-none rounded-xl focus:ring-2 text-[#001e40] shadow-sm"
             placeholder="-"
             required
@@ -255,6 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   fields.forEach((field, index) => {
     field.addEventListener('input', (e) => {
+      field.value = field.value.replace(/\D/g, '').slice(0, 1);
       if (e.inputType === 'deleteContentBackward') return;
       if (field.value.length === 1 && index < fields.length - 1) {
         fields[index + 1].focus();
@@ -266,14 +246,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         fields[index - 1].focus();
       }
     });
+
+    // Paste a full 6-digit code into any box
+    field.addEventListener('paste', (e) => {
+      const digits = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, fields.length);
+      if (!digits) return;
+      e.preventDefault();
+      digits.split('').forEach((d, i) => { fields[i].value = d; });
+      fields[Math.min(digits.length, fields.length - 1)].focus();
+    });
   });
 
-  // If dev hint pre-filled the boxes, jump focus to the last filled input
-  (function () {
-    for (let i = 0; i < fields.length; i++) {
-      if (!fields[i].value) { fields[i].focus(); break; }
-    }
-  })();
+  if (fields.length) fields[0].focus();
 </script>
 
 </body>

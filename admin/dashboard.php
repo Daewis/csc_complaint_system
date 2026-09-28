@@ -52,7 +52,7 @@ include __DIR__ . '/../includes/layout.php';
     <h2 class="text-3xl font-black text-[#001e40] tracking-tight italic">System Overview</h2>
     <p class="text-[#43474f] mt-1 text-sm font-medium flex items-center gap-2">
         <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-        LASU Result Discrepancy Control Center
+        CSC Result Discrepancy Control Center
     </p>
   </div>
   <div class="flex gap-3">

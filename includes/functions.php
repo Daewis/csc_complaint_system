@@ -490,6 +490,7 @@ function sendOtpEmail(string $toEmail, string $code, string $purpose = 'registra
         'sent'  => $result['sent'],
         'code'  => $code,
         'error' => $result['error'] ?? null,
+        'driver' => $result['driver'] ?? 'unknown',
     ];
 }
 

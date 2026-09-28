@@ -3,8 +3,8 @@
  * forgot_password.php — Step 1 of the password reset flow.
  *
  * User enters their email / matric / PF_NO. We look up the user, generate
- * an OTP, send it by email (or surface in dev mode), and redirect to
- * verify_otp.php with purpose=password_reset.
+ * an OTP, email it, and redirect to verify_otp.php with purpose=password_reset.
+ * The code is never placed in the URL.
  */
 
 require_once __DIR__ . '/includes/auth.php';
@@ -26,24 +26,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $stmt->fetch();
 
         if (!$user) {
-            // Don't reveal whether an account exists — minimal info leak
             $error = 'No account matches that identifier. Please check and try again.';
         } elseif (!$user['email']) {
             $error = 'This account has no email address on file. Please contact the ICT department.';
         } else {
-            // Generate OTP for password reset
             $code = storeOtp($user['email'], 'password_reset');
             $mailResult = sendOtpEmail($user['email'], $code, 'password_reset');
 
-            $_SESSION['otp_purpose'] = 'password_reset';
-            $_SESSION['registration_email'] = $user['email'];
-
-            $redirectUrl = 'verify_otp.php?email=' . urlencode($user['email']) . '&purpose=password_reset';
             if (!$mailResult['sent']) {
-                $redirectUrl .= '&code=' . urlencode($code) . '&mail_failed=1';
+                error_log('OTP mail failed (password reset): ' . ($mailResult['error'] ?? 'unknown'));
+                $error = 'We could not send the verification email. Please try again shortly or contact ICT support.';
+            } else {
+                $_SESSION['otp_purpose']        = 'password_reset';
+                $_SESSION['registration_email'] = $user['email'];
+
+                header('Location: ' . BASE_URL . 'verify_otp.php?email=' . urlencode($user['email']) . '&purpose=password_reset');
+                exit;
             }
-            header('Location: ' . BASE_URL . $redirectUrl);
-            exit;
         }
     }
 }
@@ -53,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Forgot Password | LASU Result Complaint Portal</title>
+  <title>Forgot Password | CSC Result Complaint Portal</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -101,6 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="relative">
         <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#43474f] text-lg">badge</span>
         <input type="text" name="identifier" required autofocus
+          value="<?= htmlspecialchars($_POST['identifier'] ?? '') ?>"
           class="w-full pl-11 pr-4 py-3.5 bg-[#edf4ff] rounded-xl border-none text-[#0b1d2c] placeholder-[#43474f]/40 focus:ring-2 focus:ring-[#001e40] focus:outline-none text-sm"
           placeholder="e.g. 220591011 / LS1234 / you@st.lasu.edu.ng">
       </div>

@@ -1,6 +1,6 @@
 <?php
 /**
- * LASU Result Complaint Portal — Central Configuration
+ * CSC Result Complaint Portal — Central Configuration
  * ====================================================================
  *
  * This file is the ONLY place where environment-specific values live.

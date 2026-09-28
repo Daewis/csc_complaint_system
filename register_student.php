@@ -7,6 +7,18 @@ $db = getDB();
 $error   = '';
 $success = '';
 
+// ── Registration rules ──────────────────────────────────────────────────
+const OFFICIAL_EMAIL_DOMAIN = '@st.lasu.edu.ng';
+const REQUIRE_OFFICIAL_EMAIL = true;   // set to false only while testing
+const REQUIRE_CSC_MATRIC     = true;   // matric must be YY + 059 + 4 digits (Computer Science)
+
+// Matric: 9 digits, e.g. 220591001 -> 22 (year) | 059 (CSC) | 1001 (unique ID)
+const MATRIC_REGEX_CSC = '/^\d{2}059\d{4}$/';
+const MATRIC_REGEX_ANY = '/^\d{9}$/';
+
+// Email: firstname.surname<9-digit matric>@st.lasu.edu.ng
+const OFFICIAL_EMAIL_REGEX = '/^[a-z][a-z\-]*\.[a-z][a-z\-]*(\d{9})@st\.lasu\.edu\.ng$/';
+
 // Faculties/departments pulled live from the DB
 $facultyRows = $db->query("SELECT id, name FROM faculties ORDER BY name")->fetchAll();
 $departmentRows = $db->query("SELECT id, faculty_id, name FROM departments ORDER BY name")->fetchAll();
@@ -26,29 +38,37 @@ foreach ($departmentRows as $d) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $firstName      = trim($_POST['first_name'] ?? '');
-    $middleName     = trim($_POST['middle_name'] ?? '');
-    $surname        = trim($_POST['surname'] ?? '');
-    $matricNo       = trim($_POST['matric_no'] ?? '');
-    $faculty        = trim($_POST['faculty'] ?? '');
-    $department     = trim($_POST['department'] ?? '');
-    $level          = trim($_POST['level'] ?? '');
-    $email          = trim($_POST['email'] ?? '');
-    $password       = $_POST['password'] ?? '';
-    $confirmPassword= $_POST['confirm_password'] ?? '';
+    $firstName       = trim($_POST['first_name'] ?? '');
+    $middleName      = trim($_POST['middle_name'] ?? '');
+    $surname         = trim($_POST['surname'] ?? '');
+    $matricNo        = trim($_POST['matric_no'] ?? '');
+    $faculty         = trim($_POST['faculty'] ?? '');
+    $department      = trim($_POST['department'] ?? '');
+    $level           = trim($_POST['level'] ?? '');
+    $email           = strtolower(trim($_POST['email'] ?? ''));
+    $password        = $_POST['password'] ?? '';
+    $confirmPassword = $_POST['confirm_password'] ?? '';
+
+    $matricRegex = REQUIRE_CSC_MATRIC ? MATRIC_REGEX_CSC : MATRIC_REGEX_ANY;
 
     // ── Validation ────────────────────────────────────────────────────────
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    if (empty($firstName) || empty($surname) || empty($matricNo) || empty($email) || empty($faculty) || empty($department) || empty($level)) {
+        $error = 'Please fill in all required fields.';
+    } elseif (!preg_match($matricRegex, $matricNo)) {
+        $error = REQUIRE_CSC_MATRIC
+            ? 'Invalid matric number. It must be exactly 9 digits in the format YY059XXXX (e.g. 220591001).'
+            : 'Matric number must be exactly 9 digits (e.g. 220591001).';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Please enter a valid email address.';
+    } elseif (REQUIRE_OFFICIAL_EMAIL && !preg_match(OFFICIAL_EMAIL_REGEX, $email, $emailMatch)) {
+        $error = 'Use your official school email in the format firstname.surname' . 'MatricNumber' . OFFICIAL_EMAIL_DOMAIN . ' (e.g. john.doe220591001' . OFFICIAL_EMAIL_DOMAIN . ').';
+    } elseif (REQUIRE_OFFICIAL_EMAIL && $emailMatch[1] !== $matricNo) {
+        $error = 'The matric number in your school email does not match the matric number you entered.';
     } elseif ($password !== $confirmPassword) {
         $error = 'Passwords do not match.';
     } elseif (strlen($password) < 6) {
         $error = 'Password must be at least 6 characters.';
-    } elseif (empty($firstName) || empty($surname) || empty($matricNo) || empty($faculty) || empty($department) || empty($level)) {
-        $error = 'Please fill in all required fields.';
     } else {
-        // Check for pre-existing user with same email or matric number
-        // (these columns have unique constraints)
         $existsStmt = $db->prepare("SELECT id FROM users WHERE email = ? OR matric_number = ? LIMIT 1");
         $existsStmt->execute([$email, $matricNo]);
         if ($existsStmt->fetch()) {
@@ -75,19 +95,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $code = storeOtp($email, 'registration', json_encode($userData));
         $mailResult = sendOtpEmail($email, $code, 'registration');
-
-        // Persist email across the verify-otp redirect
-        $_SESSION['registration_email'] = $email;
-
-        // If mail() failed (e.g. on a free shared host), pass the code
-        // through the query string so the user can complete verification
-        // during testing. Remove `&code=...` once real SMTP works.
-        $redirectUrl = 'verify_otp.php?email=' . urlencode($email);
+        
         if (!$mailResult['sent']) {
-            $redirectUrl .= '&code=' . urlencode($code) . '&mail_failed=1';
+            error_log('OTP mail failed (registration): ' . ($mailResult['error'] ?? 'unknown'));
+            $error = 'We could not send the verification email. Please try again shortly or contact ICT support.';
+        } else {
+            $_SESSION['registration_email'] = $email;
+            $_SESSION['otp_purpose']        = 'registration';
+            header('Location: ' . BASE_URL . 'verify_otp.php?email=' . urlencode($email));
+            exit;
         }
-        header('Location: ' . BASE_URL . $redirectUrl);
-        exit;
     }
 }
 ?>
@@ -96,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Student Registration | LASU Result Complaint Portal</title>
+  <title>Student Registration | CSC Result Complaint Portal</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -260,7 +277,7 @@ body{
              class="w-16 h-16 rounded-xl object-contain bg-white p-1 shadow-lg flex-shrink-0"
              onerror="this.src='https://www.lasu.edu.ng/home/img/logo.png'">
         <div>
-          <h1 class="text-xl font-black tracking-tight leading-tight">LASU Result<br/> Complaint Portal</h1>
+          <h1 class="text-xl font-black tracking-tight leading-tight">CSC Result<br/> Complaint Portal</h1>
           <p class="text-xs uppercase tracking-widest opacity-60 mt-0.5">Lagos State University</p>
         </div>
       </div>
@@ -324,7 +341,12 @@ body{
     </div>
     <?php endif; ?>
 
-    <form method="POST" class="space-y-10">
+    <div id="client_error" class="hidden mb-8 p-4 rounded-xl text-sm font-bold bg-[#ffdad6] text-[#93000a] flex items-center gap-3">
+      <span class="material-symbols-outlined text-base">error</span>
+      <span id="client_error_text"></span>
+    </div>
+
+    <form method="POST" id="register_form" class="space-y-10" novalidate>
       <section class="space-y-6">
         <div class="flex items-center gap-3">
           <span class="w-8 h-8 rounded-lg bg-[#001e40] flex items-center justify-center text-white">
@@ -364,7 +386,10 @@ body{
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-2">
             <label class="text-xs font-bold text-[#43474f] uppercase tracking-wider ml-1">Matric Number</label>
-            <input type="text" name="matric_no" required placeholder="210591048" maxLength="9"
+            <input type="text" id="matric_no" name="matric_no" required placeholder="220591001"
+              maxlength="9" minlength="9" inputmode="numeric"
+              pattern="<?= REQUIRE_CSC_MATRIC ? '\d{2}059\d{4}' : '\d{9}' ?>"
+              title="<?= REQUIRE_CSC_MATRIC ? 'Exactly 9 digits in the format YY059XXXX, e.g. 220591001' : 'Exactly 9 digits, e.g. 220591001' ?>"
               class="w-full bg-[#edf4ff] border-none rounded-xl p-4 text-[#0b1d2c] focus:ring-2 focus:ring-[#001e40] placeholder-[#43474f]/40"
               value="<?= htmlspecialchars($_POST['matric_no'] ?? '') ?>">
           </div>
@@ -374,7 +399,7 @@ body{
     class="w-full bg-[#edf4ff] border-none rounded-xl p-4 text-[#0b1d2c] focus:ring-2 focus:ring-[#001e40] appearance-none cursor-pointer">
     <option value="" disabled selected>Select Level</option>
 
-    <?php for($i=100; $i<=600; $i+=100): ?>
+    <?php for($i=100; $i<=400; $i+=100): ?>
       <option value="<?= $i ?>" <?= (($_POST['level'] ?? '') == $i) ? 'selected' : '' ?>>
         <?= $i ?>
       </option>
@@ -404,27 +429,34 @@ body{
           </div>
           <div class="md:col-span-2 space-y-2">
   <label class="block text-xs font-bold text-[#43474f] uppercase tracking-wider ml-1 mb-2">
-    School Email or Personal Email
-</label>
+    Official School Email
+  </label>
 
-<div class="relative group">
+  <div class="relative group">
     <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#43474f] text-lg">
         mail
     </span>
 
     <input
         type="email"
+        id="email"
         name="email"
         required
-        placeholder="username@st.lasu.edu.ng"
+        placeholder="john.doe220591001@st.lasu.edu.ng"
+        autocomplete="email"
+        <?php if (REQUIRE_OFFICIAL_EMAIL): ?>
+        pattern="[A-Za-z][A-Za-z\-]*\.[A-Za-z][A-Za-z\-]*\d{9}@st\.lasu\.edu\.ng"
+        title="Use your official school email: firstname.surnameMatricNumber@st.lasu.edu.ng (e.g. john.doe220591001@st.lasu.edu.ng)"
+        <?php endif; ?>
         class="w-full pl-14 pr-4 py-4 bg-[#edf4ff] border-none rounded-xl text-[#0b1d2c] focus:ring-2 focus:ring-[#001e40] placeholder-[#43474f]/40"
         value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
     >
-</div>
+  </div>
 
-    <p class="text-[11px] text-[#43474f]/60 mt-1 ml-1">
-        Use your LASU email address. Personal email addresses are temporarily accepted during testing for OTP verification.
-    </p>
+  <p class="text-[11px] text-[#43474f]/60 mt-1 ml-1">
+    Format: <strong>firstname.surname&lt;matric no&gt;@st.lasu.edu.ng</strong> (e.g. john.doe220591001@st.lasu.edu.ng).
+    Your verification code will be sent to this address. Other email addresses are not accepted.
+  </p>
 </div>
         </div>
       </section>
@@ -488,8 +520,19 @@ body{
   // Use json_encode for the department too to prevent quote/null issues
   const selectedDept = <?= json_encode($department ?? '') ?>;
 
+  // Validation rules mirrored from PHP
+  const REQUIRE_OFFICIAL_EMAIL = <?= json_encode(REQUIRE_OFFICIAL_EMAIL) ?>;
+  const REQUIRE_CSC_MATRIC     = <?= json_encode(REQUIRE_CSC_MATRIC) ?>;
+  const MATRIC_RE = REQUIRE_CSC_MATRIC ? /^\d{2}059\d{4}$/ : /^\d{9}$/;
+  const EMAIL_RE  = /^[a-z][a-z\-]*\.[a-z][a-z\-]*(\d{9})@st\.lasu\.edu\.ng$/;
+
   const facultySelect = document.getElementById('faculty_select');
   const departmentSelect = document.getElementById('department_select');
+  const matricInput = document.getElementById('matric_no');
+  const emailInput = document.getElementById('email');
+  const form = document.getElementById('register_form');
+  const clientError = document.getElementById('client_error');
+  const clientErrorText = document.getElementById('client_error_text');
 
   function updateDepartments() {
     const selectedFaculty = facultySelect.value;
@@ -517,12 +560,61 @@ body{
     updateDepartments();
   }
 
-
   function togglePassword(inputId) {
     const input = document.getElementById(inputId);
     input.type = input.type === 'password' ? 'text' : 'password';
   }
 
+  // Matric: digits only, max 9
+  matricInput.addEventListener('input', () => {
+    matricInput.value = matricInput.value.replace(/\D/g, '').slice(0, 9);
+  });
+
+  // Email: force lowercase and strip spaces as they type
+  emailInput.addEventListener('input', () => {
+    emailInput.value = emailInput.value.toLowerCase().replace(/\s/g, '');
+  });
+
+  function showClientError(msg) {
+    clientErrorText.textContent = msg;
+    clientError.classList.remove('hidden');
+    clientError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // Client-side check before submit (server re-validates everything)
+  form.addEventListener('submit', (e) => {
+    clientError.classList.add('hidden');
+
+    const matric = matricInput.value.trim();
+    const email  = emailInput.value.trim().toLowerCase();
+
+    if (!MATRIC_RE.test(matric)) {
+      e.preventDefault();
+      showClientError(REQUIRE_CSC_MATRIC
+        ? 'Invalid matric number. It must be exactly 9 digits in the format YY059XXXX (e.g. 220591001).'
+        : 'Matric number must be exactly 9 digits (e.g. 220591001).');
+      return;
+    }
+
+    if (REQUIRE_OFFICIAL_EMAIL) {
+      const m = email.match(EMAIL_RE);
+      if (!m) {
+        e.preventDefault();
+        showClientError('Use your official school email in the format firstname.surnameMatricNumber@st.lasu.edu.ng (e.g. john.doe220591001@st.lasu.edu.ng).');
+        return;
+      }
+      if (m[1] !== matric) {
+        e.preventDefault();
+        showClientError('The matric number in your school email does not match the matric number you entered.');
+        return;
+      }
+    }
+
+    if (!form.checkValidity()) {
+      e.preventDefault();
+      form.reportValidity();
+    }
+  });
 </script>
 
 </body>

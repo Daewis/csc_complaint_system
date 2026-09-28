@@ -1,5 +1,5 @@
 -- =====================================================================
--- LASU Result Complaint Portal — Canonical Schema
+-- CSC Result Complaint Portal — Canonical Schema
 -- Database name: configurable via DB_NAME in .env (default: lasu_uniportal)
 -- =====================================================================
 -- This is the FULL schema with all fixes already applied:

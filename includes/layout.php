@@ -23,7 +23,7 @@ $pendingLecturer = ($user['is_lecturer']) ? getPendingLecturerCount((int)$user['
 
 checkSLAStatus(); // Runs background SLA check on every page load
 
-$pageTitle = $pageTitle ?? 'LASU Result Complaint Portal';
+$pageTitle = $pageTitle ?? 'CSC Result Complaint Portal';
 $activeNav = $activeNav ?? '';
 
 /**
@@ -59,7 +59,7 @@ function sidebarDivider(string $label): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="google-site-verification" content="WsPDbEfWnpQQ2OWRyUrsBZfNmyTrmeXWKwb0QcppGmQ" />
-  <title><?= htmlspecialchars($pageTitle) ?> | LASU Result Complaint Portal</title>
+  <title><?= htmlspecialchars($pageTitle) ?> | CSC Result Complaint Portal</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -117,7 +117,7 @@ transition-transform duration-300
 
       <div>
         <h1 class="text-md font-black tracking-tighter text-[#001e40] uppercase leading-none">
-          LASU Result<br>Complaint Portal
+          CSC Result<br>Complaint Portal
         </h1>
 
         <p class="text-[9px] uppercase tracking-[0.2em] text-[#43474f] font-bold opacity-50">

@@ -1,4 +1,4 @@
-# LASU Result Complaint Portal
+# CSC Result Complaint Portal
 
 A PHP/MySQL web portal for managing academic result complaints at Lagos State University. Students file complaints about result discrepancies; Level Advisers endorse; Heads of Department assign to Lecturers; Lecturers verify; HODs issue the final ruling. Each step generates an auditable, tamper-evident record and a printable official letter (with PDF.co-powered server-side PDF generation).
 
@@ -483,7 +483,7 @@ If a driver fails (e.g. SMTP creds missing, host blocks `mail()`), the verify-ot
    SMTP_PASSWORD=xkeys-ib-your-key-here  # the key from step 3
    SMTP_ENCRYPTION=tls
    MAIL_FROM=no-reply@lasu.edu.ng
-   MAIL_FROM_NAME=LASU Result Complaint Portal
+   MAIL_FROM_NAME=CSC Result Complaint Portal
    ```
 
 You're done. The registration + password reset flows will now send real emails via Brevo.
