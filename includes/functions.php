@@ -46,9 +46,19 @@ function statusBadge(string $status): string {
         'verified'             => ['bg-indigo-100 text-indigo-700', 'Lecturer Verified'],
         'approved'             => ['bg-green-100 text-green-700',   'Final Approval'],
         'rejected'             => ['bg-red-100 text-red-700',       'Complaint Denied'],
+        'withdrawn'            => ['bg-gray-200 text-gray-600',     'Withdrawn by Student'],
     ];
     [$style, $label] = $map[strtolower($status)] ?? ['bg-gray-100 text-gray-600', ucfirst($status)];
     return "<span class=\"px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest $style\">$label</span>";
+}
+
+/**
+ * Renders a small "BORROWED" badge for complaints filed against borrowed
+ * courses (from other departments). Only renders if is_borrowed is truthy.
+ */
+function borrowedBadge(?int $isBorrowed): string {
+    if (!$isBorrowed) return '';
+    return '<span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 ml-2" title="Borrowed course — from another department">BORROWED</span>';
 }
 
 function addNotification(int $userId, ?int $complaintId, string $message, string $type = 'complaint'): void {
@@ -286,32 +296,72 @@ function uploadEvidence(array $file): ?string
 
 /**
  * Save user signature images
+ *
+ * Returns the relative path on success, or null + a diagnostic error
+ * message logged to error_log on failure. Callers should check for null
+ * and surface a friendly message to the user (see profile.php).
+ *
+ * Common failure modes:
+ *   • The upload directory is not writable (chmod 755 on assets/uploads)
+ *   • The file extension is not in the allowed list (jpg/jpeg/png/gif)
+ *   • move_uploaded_file() fails (e.g. disk full, safe_mode restriction)
  */
 function saveSignature(array $file, string $identifier, string $role, string $type = 'signatures'): ?string {
     $subFolder      = ($role === 'student') ? 'students' : 'staff';
     $baseUploadPath = __DIR__ . "/../assets/uploads/$type/$subFolder/";
 
+    // Check for upload errors first (PHP-level)
+    if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+        $code = $file['error'] ?? 'unknown';
+        $messages = [
+            UPLOAD_ERR_INI_SIZE   => 'File exceeds php.ini upload_max_filesize',
+            UPLOAD_ERR_FORM_SIZE  => 'File exceeds MAX_FILE_SIZE directive',
+            UPLOAD_ERR_PARTIAL    => 'File was only partially uploaded',
+            UPLOAD_ERR_NO_FILE    => 'No file was uploaded',
+            UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder',
+            UPLOAD_ERR_CANT_WRITE => 'Failed to write to disk',
+            UPLOAD_ERR_EXTENSION  => 'Upload blocked by a PHP extension',
+        ];
+        $msg = $messages[$code] ?? "Upload error code {$code}";
+        error_log("saveSignature: upload error — {$msg}");
+        return null;
+    }
+
+    // Create directory if missing
     if (!is_dir($baseUploadPath)) {
-        if (!mkdir($baseUploadPath, 0755, true)) {
-            error_log("saveSignature: Failed to create directory: $baseUploadPath");
+        if (!@mkdir($baseUploadPath, 0775, true)) {
+            $err = error_get_last()['message'] ?? 'unknown';
+            error_log("saveSignature: Failed to create directory {$baseUploadPath} — {$err}");
             return null;
         }
     }
 
+    // Check the directory is writable
+    if (!is_writable($baseUploadPath)) {
+        error_log("saveSignature: Directory not writable: {$baseUploadPath}. Run: chmod -R 755 assets/uploads");
+        return null;
+    }
+
+    // Validate extension
     $ext               = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+    if (!in_array($ext, $allowedExtensions, true)) {
+        error_log("saveSignature: Invalid extension '{$ext}'. Allowed: " . implode(', ', $allowedExtensions));
+        return null;
+    }
 
-    if (!in_array($ext, $allowedExtensions)) return null;
-
+    // Generate safe filename
     $cleanIdentifier = preg_replace('/[^a-zA-Z0-9_-]/', '', $identifier);
     $newFileName     = $cleanIdentifier . '_' . time() . '.' . $ext;
     $fullDestination = $baseUploadPath . $newFileName;
 
+    // Move the uploaded file to the final location
     if (move_uploaded_file($file['tmp_name'], $fullDestination)) {
         return "assets/uploads/$type/$subFolder/$newFileName";
     }
 
-    error_log("saveSignature: move_uploaded_file failed — dest=$fullDestination");
+    $err = error_get_last()['message'] ?? 'unknown';
+    error_log("saveSignature: move_uploaded_file failed — tmp={$file['tmp_name']} dest={$fullDestination} err={$err}");
     return null;
 }
 

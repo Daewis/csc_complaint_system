@@ -304,7 +304,7 @@ include __DIR__ . '/../includes/layout.php';
                 <textarea name="csv_paste"
                           class="w-full bg-[#f7f9ff] border-none rounded-2xl p-6 text-xs font-mono mb-4"
                           rows="8"
-                          placeholder="full_name,email,pf_no,designation,department,faculty,level,is_lecturer&#10;Dr. Jane Doe,jane@lasu.edu.ng,LS9001,lecturer,Computer Science,Science,400,1"></textarea>
+                          placeholder="full_name,email,pf_no,designation,department,faculty,level,is_lecturer&#10;Dr. Jane Doe,jane.doe@lasu.edu.ng,LS9001,Lecturer,Computer Science,Science,400,1&#10;Dr. John Smith,john.smith@lasu.edu.ng,LS9002,HOD,Physics,Science,500,1&#10;Prof. Adamu Bello,adamu.bello@lasu.edu.ng,LS9003,Professor / Adviser,Mathematics,Science,300,1"></textarea>
             </div>
 
             <button type="submit"
@@ -338,21 +338,49 @@ include __DIR__ . '/../includes/layout.php';
         </div>
 
         <div class="bg-[#fecb00]/10 border border-[#fecb00] p-6 rounded-2xl">
-            <p class="font-black text-[#6e5700] text-xs uppercase tracking-widest mb-3">Column Guide</p>
-            <div class="space-y-2 text-xs text-[#6e5700]/80">
-                <p><strong>Required:</strong> full_name, email</p>
-                <p><strong>Optional:</strong> pf_no, department, faculty, level</p>
-                <p><strong>Role Detection:</strong> designation (lecturer/prof/dr., hod/head, adviser/advisor)</p>
-                <p><strong>Or explicit:</strong> is_lecturer (1/0, true/false, yes/no)</p>
+            <div class="flex items-center justify-between mb-3">
+                <p class="font-black text-[#6e5700] text-xs uppercase tracking-widest">Column Guide</p>
+                <a href="<?= BASE_URL ?>download_template.php?type=staff"
+                   class="inline-flex items-center gap-1 bg-[#001e40] text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-[#003366] transition-colors">
+                    <span class="material-symbols-outlined text-xs">download</span> Download Template
+                </a>
+            </div>
+            <div class="space-y-2 text-xs text-[#6e5700]/80 mb-4">
+                <p><strong class="text-[#6e5700]">Required columns:</strong></p>
+                <div class="flex flex-wrap gap-1.5">
+                    <code class="bg-white/60 px-2 py-0.5 rounded-lg font-black text-[#001e40]">full_name</code>
+                    <code class="bg-white/60 px-2 py-0.5 rounded-lg font-black text-[#001e40]">email</code>
+                </div>
+                <p class="mt-2"><strong class="text-[#6e5700]">Optional columns:</strong></p>
+                <div class="flex flex-wrap gap-1.5">
+                    <code class="bg-white/60 px-2 py-0.5 rounded-lg font-black text-[#001e40]">pf_no</code>
+                    <code class="bg-white/60 px-2 py-0.5 rounded-lg font-black text-[#001e40]">designation</code>
+                    <code class="bg-white/60 px-2 py-0.5 rounded-lg font-black text-[#001e40]">department</code>
+                    <code class="bg-white/60 px-2 py-0.5 rounded-lg font-black text-[#001e40]">faculty</code>
+                    <code class="bg-white/60 px-2 py-0.5 rounded-lg font-black text-[#001e40]">level</code>
+                    <code class="bg-white/60 px-2 py-0.5 rounded-lg font-black text-[#001e40]">is_lecturer</code>
+                </div>
+                <p class="mt-2 leading-relaxed"><strong class="text-[#6e5700]">Role detection:</strong> the <code class="bg-white/60 px-1 rounded">designation</code> column is scanned for keywords:
+                  <code class="bg-white/60 px-1 rounded">lecturer / prof / dr.</code> → is_lecturer,
+                  <code class="bg-white/60 px-1 rounded">hod / head</code> → is_hod,
+                  <code class="bg-white/60 px-1 rounded">adviser / advisor</code> → is_level_adviser.</p>
+                <p class="leading-relaxed">Or pass explicit flags: <code class="bg-white/60 px-1 rounded">is_lecturer=1</code> (or true / yes / 0 / false / no).</p>
+            </div>
+
+            <div class="bg-white/40 border border-[#fecb00]/30 rounded-xl p-3 mt-3">
+                <p class="text-[10px] font-black text-[#6e5700] uppercase tracking-widest mb-2">Sample row</p>
+                <pre class="text-[10px] text-[#6e5700]/80 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">full_name,email,pf_no,designation,department,faculty,level,is_lecturer
+Dr. Jane Doe,jane.doe@lasu.edu.ng,LS9001,Lecturer,Computer Science,Science,400,1
+Dr. John Smith,john.smith@lasu.edu.ng,LS9002,HOD,Physics,Science,500,1</pre>
             </div>
         </div>
 
         <div class="bg-blue-50 border border-blue-100 p-6 rounded-2xl">
             <p class="font-black text-blue-800 text-xs uppercase tracking-widest mb-2">How It Works</p>
             <ol class="space-y-1 text-xs text-blue-700 list-decimal list-inside">
-                <li>Import whitelists the staff email in MySQL</li>
-                <li>Staff registers using their email via Supabase</li>
-                <li>System links Supabase UID to the MySQL record</li>
+                <li>Import whitelists the staff email in MySQL with role flags</li>
+                <li>Staff registers using their PF_NO on <code class="bg-white px-1 rounded">register_staff.php</code></li>
+                <li>Staff sets their own password (no Supabase needed)</li>
                 <li>Staff can now log in and access the portal</li>
             </ol>
         </div>

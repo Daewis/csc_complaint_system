@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =====================================================================
-# Deploy script: commits the portable CSC Result Complaint Portal
+# Deploy script: commits the portable LASU Result Complaint Portal
 # build and pushes it to GitHub.
 #
 # USAGE:
@@ -25,7 +25,7 @@
 set -e
 
 echo "============================================================"
-echo "  CSC Result Complaint Portal — GitHub Deploy Script"
+echo "  LASU Result Complaint Portal — GitHub Deploy Script"
 echo "============================================================"
 echo ""
 echo "This script will:"

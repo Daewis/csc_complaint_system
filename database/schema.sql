@@ -47,7 +47,7 @@ CREATE TABLE `complaints` (
   `category` varchar(100) NOT NULL,
   `complaint_text` text NOT NULL,
   `evidence_path` varchar(255) DEFAULT NULL,
-  `status` enum('pending','returned_to_student','endorsed','assigned_to_lecturer','verified','approved','rejected') DEFAULT 'pending',
+  `status` enum('pending','returned_to_student','endorsed','assigned_to_lecturer','verified','approved','rejected','withdrawn') DEFAULT 'pending',
   `level_adviser_id` int(11) DEFAULT NULL,
   `la_comment` text DEFAULT NULL,
   `la_signed_at` datetime DEFAULT NULL,
@@ -80,7 +80,10 @@ CREATE TABLE `complaints` (
   `ai_validation_status` enum('pending','passed','failed','manual_review') DEFAULT 'pending',
   `ai_validation_reason` text DEFAULT NULL,
   `upgrade_recommendation` enum('eligible','not_eligible') DEFAULT NULL,
-  `upgrade_comment` text DEFAULT NULL
+  `upgrade_comment` text DEFAULT NULL,
+  `is_borrowed` tinyint(1) DEFAULT 0,
+  `student_comment` text DEFAULT NULL,
+  `withdrawn_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -205,7 +208,8 @@ ALTER TABLE `complaints`
   ADD KEY `level_adviser_id` (`level_adviser_id`),
   ADD KEY `hod_id` (`hod_id`),
   ADD KEY `hod_assigned_lecturer_id` (`hod_assigned_lecturer_id`),
-  ADD KEY `lecturer_id` (`lecturer_id`);
+  ADD KEY `lecturer_id` (`lecturer_id`),
+  ADD KEY `idx_is_borrowed` (`is_borrowed`);
 
 ALTER TABLE `courses`
   ADD PRIMARY KEY (`id`),

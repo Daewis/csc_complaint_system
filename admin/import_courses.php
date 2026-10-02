@@ -458,7 +458,13 @@ include __DIR__ . '/../includes/layout.php';
   <!-- Format guide -->
   <div class="flex flex-col gap-5">
     <div class="bg-[#fecb00] p-6 rounded-3xl">
-      <p class="text-xs font-black text-[#6e5700] uppercase tracking-widest mb-4">Required CSV Headers</p>
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-xs font-black text-[#6e5700] uppercase tracking-widest">Required CSV Headers</p>
+        <a href="<?= BASE_URL ?>download_template.php?type=courses"
+           class="inline-flex items-center gap-1 bg-[#001e40] text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-[#003366] transition-colors">
+          <span class="material-symbols-outlined text-xs">download</span> Download Template
+        </a>
+      </div>
       <ul class="space-y-2">
         <?php foreach (EXPECTED_COLS as $col): ?>
         <li class="flex items-center gap-2 text-xs font-bold text-[#001e40]">
@@ -467,6 +473,13 @@ include __DIR__ . '/../includes/layout.php';
         </li>
         <?php endforeach; ?>
       </ul>
+
+      <div class="mt-4 pt-4 border-t border-[#6e5700]/20">
+        <p class="text-[10px] font-black text-[#6e5700] uppercase tracking-widest mb-2">Sample row</p>
+        <pre class="text-[10px] text-[#6e5700]/80 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">course_code,course_title,faculty,credit_units,department,level,semester,status,curriculum_type
+CSC 201,Data Structures and Algorithms,Science,3,Computer Science,200,Harmattan,C,CCMAS
+GNS 101,Use of English,Education,2,General Studies,100,Harmattan,C,BMAS</pre>
+      </div>
     </div>
 
     <div class="bg-[#edf4ff] p-6 rounded-3xl space-y-3">

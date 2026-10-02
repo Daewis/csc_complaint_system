@@ -167,7 +167,7 @@ include __DIR__ . '/../includes/layout.php';
     <?= $isCourseUpgrade ? 'Grade Upgrade Review' : 'Score Verification' ?>
   </h2>
   <code class="text-sm bg-[#edf4ff] text-[#001e40] px-3 py-1 rounded-lg font-mono font-bold"><?= sanitize($c['ticket_number']) ?></code>
-  <?= statusBadge($c['status']) ?>
+  <?= statusBadge($c['status']) ?><?= borrowedBadge($c['is_borrowed'] ?? 0) ?>
   <?php if ($c['is_overdue']): ?>
   <span class="text-[9px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">⚠ OVERDUE SLA</span>
   <?php endif; ?>
@@ -630,6 +630,16 @@ include __DIR__ . '/../includes/layout.php';
       </p>
       <p class="text-sm text-[#0b1d2c] italic">"<?= nl2br(sanitize($c['hod_comment'])) ?>"</p>
       <p class="text-[10px] text-[#43474f]/60 mt-2"><?= formatDate($c['hod_signed_at']) ?></p>
+    </div>
+    <?php endif; ?>
+
+    <!-- Student comment (visible to Lecturer for context) -->
+    <?php if (!empty($c['student_comment'])): ?>
+    <div class="bg-[#edf4ff] border border-[#d2e4f9] rounded-xl p-5">
+      <p class="text-xs font-bold text-[#001e40] uppercase tracking-widest mb-3 flex items-center gap-2">
+        <span class="material-symbols-outlined text-sm">chat</span>Student Comment
+      </p>
+      <p class="text-sm text-[#0b1d2c] leading-relaxed"><?= nl2br(sanitize($c['student_comment'])) ?></p>
     </div>
     <?php endif; ?>
 

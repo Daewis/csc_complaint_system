@@ -168,7 +168,7 @@ include __DIR__ . '/../includes/layout.php';
   </a>
   <h2 class="text-2xl font-black text-[#001e40]">HOD Review</h2>
   <code class="text-sm bg-[#edf4ff] text-[#001e40] px-3 py-1 rounded-lg font-mono font-bold"><?= sanitize($c['ticket_number']) ?></code>
-  <?= statusBadge($c['status']) ?>
+  <?= statusBadge($c['status']) ?><?= borrowedBadge($c['is_borrowed'] ?? 0) ?>
   <div class="ml-auto flex items-center gap-2">
     <?php if (in_array($c['status'], ['approved','rejected','verified','endorsed'])): ?>
     <a href="<?= BASE_URL ?>download_letter.php?id=<?= $id ?>"
@@ -750,6 +750,16 @@ include __DIR__ . '/../includes/layout.php';
         </div>
         <?php endforeach; ?>
       </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Student comment (visible to HOD for context) -->
+    <?php if (!empty($c['student_comment'])): ?>
+    <div class="bg-[#edf4ff] border border-[#d2e4f9] rounded-xl p-5">
+      <p class="text-xs font-bold text-[#001e40] uppercase tracking-widest mb-3 flex items-center gap-2">
+        <span class="material-symbols-outlined text-sm">chat</span>Student Comment
+      </p>
+      <p class="text-sm text-[#0b1d2c] leading-relaxed"><?= nl2br(sanitize($c['student_comment'])) ?></p>
     </div>
     <?php endif; ?>
 

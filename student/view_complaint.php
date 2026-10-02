@@ -47,7 +47,46 @@ $auditLog = $auditStmt->fetchAll();
 
 $error = ''; $success = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $c['status'] === 'returned_to_student') {
+// ── WITHDRAW COMPLAINT (only allowed when status='pending') ────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'withdraw' && $c['status'] === 'pending') {
+    $db->prepare("UPDATE complaints SET status='withdrawn', withdrawn_at=NOW(), updated_at=NOW() WHERE id=? AND student_id=?")
+       ->execute([$id, $user['id']]);
+    logAudit($id, $user['id'], 'withdrawn', getClientIP(), 'Student withdrew the complaint.');
+    // Notify the Level Adviser (if any was assigned — unlikely at pending stage but be safe)
+    if (!empty($c['level_adviser_id'])) {
+        addNotification($c['level_adviser_id'], $id, "Complaint #{$c['ticket_number']} was withdrawn by the student.");
+    }
+    header("Location: " . BASE_URL . "student/view_complaint.php?id={$id}&success=withdrawn");
+    exit;
+}
+
+// ── ADD STUDENT COMMENT (allowed at any status — no editing original text) ─
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_comment') {
+    $comment = trim($_POST['student_comment'] ?? '');
+    if (!$comment) {
+        $error = 'Comment cannot be empty.';
+    } elseif (strlen($comment) > 500) {
+        $error = 'Comment must be 500 characters or fewer.';
+    } else {
+        // Append to the existing student_comment (separated by a divider)
+        $existingComment = $c['student_comment'] ?? '';
+        $timestamp = date('Y-m-d H:i:s');
+        $newEntry  = "[{$timestamp}] {$comment}";
+        $updatedComment = $existingComment
+            ? $existingComment . "\n---\n" . $newEntry
+            : $newEntry;
+        $db->prepare("UPDATE complaints SET student_comment=?, updated_at=NOW() WHERE id=? AND student_id=?")
+           ->execute([$updatedComment, $id, $user['id']]);
+        logAudit($id, $user['id'], 'student_comment_added', getClientIP(), 'Student added a comment.');
+        $success = 'Comment added successfully.';
+        // Refresh $c
+        $stmt->execute([$user['department'], $id, $user['id']]);
+        $c = $stmt->fetch();
+    }
+}
+
+// ── RESUBMIT (when status='returned_to_student') ──────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $c['status'] === 'returned_to_student' && ($_POST['action'] ?? '') !== 'withdraw' && ($_POST['action'] ?? '') !== 'add_comment') {
     $complaint    = trim($_POST['complaint_text'] ?? $c['complaint_text']);
     $evidencePath = null;
 
@@ -136,7 +175,7 @@ include __DIR__ . '/../includes/layout.php';
   </a>
   <h2 class="text-2xl font-black text-[#001e40]">Complaint Detail</h2>
   <code class="text-sm bg-[#edf4ff] text-[#001e40] px-3 py-1 rounded-lg font-mono font-bold"><?= sanitize($c['ticket_number']) ?></code>
-  <?= statusBadge($c['status']) ?>
+  <?= statusBadge($c['status']) ?><?= borrowedBadge($c['is_borrowed'] ?? 0) ?>
   <button onclick="window.print()"
     class="ml-auto flex items-center gap-1 text-[#43474f] hover:text-[#001e40] text-xs font-bold transition-colors p-2 hover:bg-[#edf4ff] rounded-lg">
     <span class="material-symbols-outlined text-sm">print</span>Print
@@ -146,7 +185,15 @@ include __DIR__ . '/../includes/layout.php';
 <?php if (isset($_GET['success'])): ?>
 <div class="mb-5 flex items-center gap-3 bg-green-50 text-green-800 border border-green-200 px-5 py-4 rounded-xl text-sm font-medium no-print">
   <span class="material-symbols-outlined text-base">check_circle</span>
-  <?= $_GET['success'] === 'filed' ? 'Your complaint has been submitted successfully!' : 'Complaint resubmitted successfully!' ?>
+  <?php
+  $successMsg = $_GET['success'] ?? '';
+  $messages = [
+      'filed'       => 'Your complaint has been submitted successfully!',
+      'resubmitted' => 'Complaint resubmitted successfully!',
+      'withdrawn'   => 'Your complaint has been withdrawn.',
+  ];
+  echo $messages[$successMsg] ?? 'Done.';
+  ?>
 </div>
 <?php endif; ?>
 
@@ -371,6 +418,71 @@ include __DIR__ . '/../includes/layout.php';
           class="inline-flex items-center gap-2 bg-[#edf4ff] text-[#001e40] px-5 py-3 rounded-xl text-sm font-bold hover:bg-[#d2e4f9] transition-all">
           <span class="material-symbols-outlined text-base">open_in_new</span>View Attached Evidence
         </a>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- WITHDRAW COMPLAINT (only when status=pending) -->
+    <?php if ($c['status'] === 'pending'): ?>
+    <div class="bg-white rounded-xl shadow-[0_20px_40px_rgba(11,29,44,0.06)] overflow-hidden no-print">
+      <div class="px-6 py-4 bg-red-50 flex items-center gap-2">
+        <span class="material-symbols-outlined text-red-600 text-base">cancel</span>
+        <h4 class="font-bold text-red-700 text-sm">Withdraw Complaint</h4>
+      </div>
+      <div class="p-6">
+        <p class="text-xs text-[#43474f] mb-4">Withdrawing will cancel this complaint permanently. The Level Adviser will be notified. This action cannot be undone.</p>
+        <form method="POST" onsubmit="return confirm('Are you sure you want to withdraw this complaint? This cannot be undone.')">
+          <input type="hidden" name="action" value="withdraw">
+          <button type="submit" class="flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-red-700 transition-all">
+            <span class="material-symbols-outlined text-base">cancel</span>Withdraw Complaint
+          </button>
+        </form>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- STUDENT COMMENT (allowed at any active status) -->
+    <?php if (!in_array($c['status'], ['withdrawn', 'approved', 'rejected'])): ?>
+    <div class="bg-white rounded-xl shadow-[0_20px_40px_rgba(11,29,44,0.06)] overflow-hidden no-print">
+      <div class="px-6 py-4 bg-[#edf4ff]/50 flex items-center gap-2">
+        <span class="material-symbols-outlined text-[#001e40] text-base">comment</span>
+        <h4 class="font-bold text-[#001e40] text-sm">Add a Comment</h4>
+      </div>
+      <div class="p-6">
+        <p class="text-xs text-[#43474f] mb-4">Comments are appended to the complaint record for your Level Adviser and HOD to see. You cannot edit the original complaint text — use comments to add context or clarifications instead.</p>
+        <form method="POST" class="space-y-3">
+          <input type="hidden" name="action" value="add_comment">
+          <textarea name="student_comment" rows="3" maxlength="500"
+            class="w-full bg-[#f7f9ff] border-none rounded-xl px-4 py-3 text-sm text-[#0b1d2c] focus:ring-2 focus:ring-[#001e40] resize-none placeholder-[#43474f]/50"
+            placeholder="Add a clarification, extra detail, or correction note (max 500 characters)..."
+            required></textarea>
+          <button type="submit" class="flex items-center gap-2 bg-[#001e40] text-white px-5 py-2.5 rounded-xl font-bold text-xs hover:bg-[#003366] transition-all">
+            <span class="material-symbols-outlined text-sm">send</span>Add Comment
+          </button>
+        </form>
+        <?php if (!empty($c['student_comment'])): ?>
+        <div class="mt-5 pt-4 border-t border-gray-100">
+          <p class="text-[10px] font-bold text-[#43474f] uppercase tracking-widest mb-3">Previous Comments</p>
+          <div class="bg-[#f7f9ff] rounded-xl p-4 text-xs text-[#0b1d2c] leading-relaxed">
+            <?= nl2br(sanitize($c['student_comment'])) ?>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- DISPLAY STUDENT COMMENT (for withdrawn/approved/rejected — read-only) -->
+    <?php if (in_array($c['status'], ['withdrawn', 'approved', 'rejected']) && !empty($c['student_comment'])): ?>
+    <div class="bg-white rounded-xl shadow-[0_20px_40px_rgba(11,29,44,0.06)] overflow-hidden no-print">
+      <div class="px-6 py-4 bg-[#edf4ff]/50 flex items-center gap-2">
+        <span class="material-symbols-outlined text-[#001e40] text-base">comment</span>
+        <h4 class="font-bold text-[#001e40] text-sm">Your Comments</h4>
+      </div>
+      <div class="p-6">
+        <div class="bg-[#f7f9ff] rounded-xl p-4 text-xs text-[#0b1d2c] leading-relaxed">
+          <?= nl2br(sanitize($c['student_comment'])) ?>
+        </div>
       </div>
     </div>
     <?php endif; ?>

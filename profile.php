@@ -52,7 +52,32 @@ if ($action === 'upload_profile_pic') {
                 $success = 'Digital signature updated successfully.';
                 $user = currentUser();
             } else {
-                $error = 'Failed to upload signature. Use a clear PNG/JPG under 2MB.';
+                // Diagnose the failure so the user can fix it
+                $ext        = strtolower(pathinfo($_FILES['signature_file']['name'] ?? '', PATHINFO_EXTENSION));
+                $allowedExt = in_array($ext, ['jpg', 'jpeg', 'png', 'gif'], true);
+                $sigDir     = __DIR__ . '/assets/uploads/signatures/' . (($user['role'] === 'student') ? 'students' : 'staff');
+                $isWritable = is_dir($sigDir) ? is_writable($sigDir) : is_writable(dirname($sigDir));
+
+                if (!$allowedExt) {
+                    $error = 'Failed to upload signature. The file must be a JPG, PNG, or GIF (got .' . ($ext ?: '???') . ').';
+                } elseif (!$isWritable) {
+                    $error = 'Failed to upload signature. The uploads directory is not writable. '
+                           . 'On your server, run: chmod -R 755 assets/uploads/ '
+                           . '(or contact your hosting admin to make the folder writable).';
+                } else {
+                    $code = $_FILES['signature_file']['error'] ?? UPLOAD_ERR_OK;
+                    $map = [
+                        UPLOAD_ERR_INI_SIZE   => 'The file is larger than the server\'s upload_max_filesize limit (check php.ini).',
+                        UPLOAD_ERR_FORM_SIZE  => 'The file is larger than the form\'s MAX_FILE_SIZE limit.',
+                        UPLOAD_ERR_PARTIAL    => 'The file was only partially uploaded — try again.',
+                        UPLOAD_ERR_NO_TMP_DIR => 'The server has no temporary upload folder — contact your host.',
+                        UPLOAD_ERR_CANT_WRITE => 'The server could not write to disk — contact your host.',
+                        UPLOAD_ERR_EXTENSION  => 'A PHP extension blocked the upload — contact your host.',
+                    ];
+                    $error = $code !== UPLOAD_ERR_OK
+                        ? 'Upload failed: ' . ($map[$code] ?? "Unknown error (code {$code}).")
+                        : 'Failed to upload signature. Check error_log for "saveSignature" entries for the technical reason.';
+                }
             }
         }
     }

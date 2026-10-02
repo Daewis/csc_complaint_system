@@ -9,41 +9,98 @@ $db    = getDB();
 $error = '';
 $aiWarning = ''; // Non-blocking AI warning (low confidence)
 
-// ── Course list: joined against the new normalized schema ───────────────
-// (courses no longer has department/level/semester/status/curriculum_type —
-//  those now live on course_offerings, scoped via departments)
-$stmt = $db->prepare('
-    SELECT
-        c.id,
-        c.course_code,
-        c.course_title,
-        co.credit_units,
-        co.level,
-        co.semester,
-        co.status,
-        co.curriculum_type
-    FROM course_offerings co
-    JOIN courses c       ON c.id = co.course_id
-    JOIN departments d   ON d.id = co.department_id
-    WHERE TRIM(LOWER(d.name)) = TRIM(LOWER(?))
-    ORDER BY c.course_code
-');
-$stmt->execute([$user['department']]);
+// ── Determine the current academic session + semester ─────────────────────
+// The "current" session is derived from today's date. We assume the
+// LASU academic year runs roughly Sept–Sept: First Semester = Sept–Jan,
+// Second Semester = Feb–Aug. Override via .env (CURRENT_SESSION,
+// CURRENT_SEMESTER) if you need to fix this for any reason.
+$todayYear = (int) date('Y');
+$todayMonth = (int) date('n');
+$currentSession = defined('CURRENT_SESSION') && CURRENT_SESSION
+    ? CURRENT_SESSION
+    : ($todayMonth >= 9 ? $todayYear . '/' . ($todayYear + 1) : ($todayYear - 1) . '/' . $todayYear);
+$currentSemester = defined('CURRENT_SEMESTER') && CURRENT_SEMESTER
+    ? CURRENT_SEMESTER
+    : ($todayMonth >= 9 || $todayMonth <= 1 ? 'First' : 'Second');
+
+// Sessions dropdown — current + 3 previous years (no future sessions allowed)
+$sessions = [];
+$currStartYear = (int) substr($currentSession, 0, 4);
+for ($i = 0; $i < 4; $i++) {
+    $y = $currStartYear - $i;
+    $sessions[] = $y . '/' . ($y + 1);
+}
+
+// ── Course list ────────────────────────────────────────────────────────────
+// Two modes:
+//   • Department courses (default) — filtered by student's department
+//     AND student's level. Borrowed/elective courses from other
+//     departments are NOT shown here.
+//   • Borrowed courses (toggled) — shows courses from ALL departments
+//     at the student's level. Used when filing a complaint about a
+//     borrowed/elective course taken from another department.
+$isBorrowed = isset($_GET['borrowed']) && $_GET['borrowed'] === '1';
+
+// On POST, the hidden field is_borrowed tells us which mode the student
+// was in when they submitted the form — override the GET param.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $isBorrowed = !empty($_POST['is_borrowed']) && $_POST['is_borrowed'] === '1';
+}
+if ($isBorrowed) {
+    // Borrowed mode — show all departments' courses at the student's level
+    $stmt = $db->prepare('
+        SELECT
+            c.id,
+            c.course_code,
+            c.course_title,
+            co.credit_units,
+            co.level,
+            co.semester,
+            co.status,
+            co.curriculum_type,
+            d.name AS department_name
+        FROM course_offerings co
+        JOIN courses c       ON c.id = co.course_id
+        JOIN departments d   ON d.id = co.department_id
+        WHERE co.level = ?
+          AND TRIM(LOWER(d.name)) <> TRIM(LOWER(?))   -- exclude own dept (those are seen in default mode)
+        ORDER BY d.name, c.course_code
+    ');
+    $stmt->execute([(int)$user['level'], $user['department']]);
+} else {
+    // Default mode — own department + own level only
+    $stmt = $db->prepare('
+        SELECT
+            c.id,
+            c.course_code,
+            c.course_title,
+            co.credit_units,
+            co.level,
+            co.semester,
+            co.status,
+            co.curriculum_type
+        FROM course_offerings co
+        JOIN courses c       ON c.id = co.course_id
+        JOIN departments d   ON d.id = co.department_id
+        WHERE TRIM(LOWER(d.name)) = TRIM(LOWER(?))
+          AND co.level = ?
+        ORDER BY c.course_code
+    ');
+    $stmt->execute([$user['department'], (int)$user['level']]);
+}
 $courses = $stmt->fetchAll();
 
 // ── DEBUG: if no courses came back, surface why (remove once confirmed fixed) ──
 if (empty($courses) && isset($_GET['debug'])) {
     $deptCheck = $db->query("SELECT id, name, faculty_id FROM departments ORDER BY name")->fetchAll();
     echo '<pre style="background:#fee;padding:20px;font-size:12px;">';
-    echo "User's department value: '" . htmlspecialchars($user['department']) . "'\n\n";
+    echo "User's department value: '" . htmlspecialchars($user['department']) . "'\n";
+    echo "User's level value: '" . htmlspecialchars($user['level']) . "'\n";
+    echo "Borrowed mode: " . ($isBorrowed ? 'YES' : 'no') . "\n\n";
     echo "Departments currently in DB:\n";
     print_r($deptCheck);
     echo '</pre>';
 }
-
-$currentYear = (int)date('Y');
-$sessions = [];
-for ($i = 0; $i < 4; $i++) $sessions[] = ($currentYear - $i) . '/' . ($currentYear - $i + 1);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['confirmed'] ?? '') === '1') {
     $courseId  = (int)($_POST['course_id'] ?? 0);
@@ -82,6 +139,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['confirmed'] ?? '') === '1'
 
     } elseif (strlen($category) > 100) {
         $error = 'Category must be 100 characters or fewer.';
+
+    } elseif (!in_array($session, $sessions, true)) {
+        // Block future sessions (sessions array only contains current + past)
+        $error = 'You cannot file a complaint for a future academic session. Please select ' . implode(', ', array_slice($sessions, 0, 2)) . ', etc.';
 
     } else {
 
@@ -215,9 +276,10 @@ $stmt = $db->prepare("
         evidence_path,
         ai_validation_status,
         ai_validation_reason,
+        is_borrowed,
         status
     ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending'
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending'
     )
 ");
 
@@ -232,7 +294,8 @@ $stmt->execute([
     $savedBody,
     $evidencePath,
     $aiStatus,
-    $aiReason
+    $aiReason,
+    $isBorrowed ? 1 : 0
 ]);
             $newId = $db->lastInsertId();
 
@@ -326,10 +389,16 @@ foreach ($courses as $c) {
           <select name="academic_session" id="f_session" required
             class="w-full bg-[#d2e4f9] border-none rounded-xl px-4 py-3 text-[#0b1d2c] focus:ring-2 focus:ring-[#001e40] appearance-none text-sm">
             <option value="">— Select Session —</option>
-            <?php foreach ($sessions as $s): ?><option value="<?= $s ?>"><?= $s ?></option><?php endforeach; ?>
+            <?php foreach ($sessions as $s):
+                $isCurrent = ($s === $currentSession);
+                $label = $s . ($isCurrent ? ' (Current)' : '');
+            ?>
+              <option value="<?= $s ?>" <?= $isCurrent ? 'selected' : '' ?>><?= $label ?></option>
+            <?php endforeach; ?>
           </select>
           <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#43474f] text-lg">expand_more</span>
         </div>
+        <p class="text-[10px] text-[#43474f]/60 mt-1 ml-1">Past sessions are allowed. Future sessions are blocked.</p>
       </div>
       <div>
         <label class="block text-xs font-bold text-[#001e40] uppercase tracking-wider mb-2">Semester <span class="text-red-500">*</span></label>
@@ -345,18 +414,45 @@ foreach ($courses as $c) {
       </div>
     </div>
 
+    <!-- Borrowed Course Toggle -->
+    <div class="bg-[#edf4ff] border-l-4 border-[#001e40] px-5 py-4 rounded-r-xl flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-[#001e40]">swap_horiz</span>
+        <div>
+          <p class="text-xs font-bold text-[#001e40] uppercase tracking-wider">Filing a complaint about a borrowed course?</p>
+          <p class="text-[11px] text-[#43474f] mt-0.5">
+            <?php if ($isBorrowed): ?>
+              Showing courses from <strong>other departments</strong> at your level (<?= (int)$user['level'] ?>).
+            <?php else: ?>
+              Currently showing <strong><?= sanitize($user['department']) ?></strong> courses at your level (<?= (int)$user['level'] ?>).
+            <?php endif; ?>
+            Toggle to switch between your department's courses and borrowed courses from other departments.
+          </p>
+        </div>
+      </div>
+      <a href="<?= BASE_URL ?>student/new_complaint.php?borrowed=<?= $isBorrowed ? '0' : '1' ?>"
+         class="flex items-center gap-2 bg-<?= $isBorrowed ? '[#fecb00]' : '[#001e40]' ?> text-<?= $isBorrowed ? '[#001e40]' : 'white' ?> px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest hover:scale-[1.02] transition-all whitespace-nowrap">
+        <span class="material-symbols-outlined text-sm"><?= $isBorrowed ? 'school' : 'swap_horiz' ?></span>
+        <?= $isBorrowed ? 'Back to My Courses' : 'Show Borrowed Courses' ?>
+      </a>
+    </div>
+    <input type="hidden" name="is_borrowed" id="is_borrowed_hidden" value="<?= $isBorrowed ? '1' : '0' ?>">
+
     <!-- Course & Category -->
     <div class="bg-white p-6 rounded-xl shadow-[0_20px_40px_rgba(11,29,44,0.06)] grid grid-cols-2 gap-5">
       <div>
-        <label class="block text-xs font-bold text-[#001e40] uppercase tracking-wider mb-2">Course Code <span class="text-red-500">*</span></label>
+        <label class="block text-xs font-bold text-[#001e40] uppercase tracking-wider mb-2">
+          Course Code <span class="text-red-500">*</span>
+          <?= $isBorrowed ? '<span class="ml-2 text-[9px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold uppercase tracking-widest">Borrowed</span>' : '' ?>
+        </label>
         <div class="relative">
           <input list="course_list" name="course_display" id="f_course_search"
-            placeholder="e.g. CSC 111" autocomplete="off" required
+            placeholder="e.g. <?= $isBorrowed ? 'PHY 402' : 'CSC 111' ?>" autocomplete="off" required
             class="w-full bg-[#d2e4f9] border-none rounded-xl px-4 py-3 text-[#0b1d2c] focus:ring-2 focus:ring-[#001e40] text-sm font-bold transition-all"
             oninput="resolveCourseId(this.value)" onblur="resolveCourseId(this.value)">
           <datalist id="course_list">
             <?php foreach ($courses as $course): ?>
-              <option value="<?= sanitize($course['course_code']) ?> – <?= sanitize($course['course_title']) ?>"></option>
+              <option value="<?= sanitize($course['course_code']) ?> – <?= sanitize($course['course_title']) ?>"><?= isset($course['department_name']) ? ' (' . sanitize($course['department_name']) . ')' : '' ?></option>
             <?php endforeach; ?>
           </datalist>
           <span id="courseMatchIcon" class="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 material-symbols-outlined text-base hidden">check_circle</span>
